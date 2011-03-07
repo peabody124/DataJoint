@@ -1,2 +1,2 @@
-function inserti( dj, tuples );
-insert( dj, tuples, 'ignore' );
+function inserti(dj,tuples)
+insert(dj,tuples,'ignore')

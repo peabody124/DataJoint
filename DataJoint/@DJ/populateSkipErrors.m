@@ -16,34 +16,38 @@ if ~ismember(dj.tableType,'ci')
 elseif ischar(dj.populateRelation) && isempty(dj.populateRelation)
     warning('DJ:noPopulateRelation','%s cannot be populate directly because it does not have a populate relation', class(dj));
 else
-    if nargin==1
-        key = struct([]);
-    else
-        assert(  isstruct(key) && isscalar(key)...
-            , 'The parameter ''key'' must be a scalar structure.' );
-    end
+    assert( nargin==1 || isstruct(key) && isscalar(key)...
+        , 'The parameter ''key'' must be a scalar structure.' );
 
     % rollback any ongoing transaction
     cancelTransaction(dj);
 
-    % find matching tuples in the parent relation
+    % evaluate the populate relation
     if ischar(dj.populateRelation)
-        P = eval(dj.populateRelation);
-    else
-        P = dj.populateRelation;
+        dj.populateRelation = eval(dj.populateRelation);
     end
-    keys = fetch(restrict(P,key)./restrict(dj,key));     % the keys of the parent relation that dont have matching tuples in dj
+
+    % get the keys to populate
+    if nargin==1
+        % if the key is not specified, find unpopulated keys
+        keys = fetch(dj.populateRelation./dj);
+    else
+        % if the key is specified, assume that it's likely unpopulated
+        keys = fetch(restrict(dj.populateRelation,key));
+    end
 
     % call makeTuples(dj,key) for each key in keys as an atomic transaction.
     dj.inPopulate = true;
     failedKeys = keys([]);
     errors = {};
     for key = flipud(keys)'
-        fprintf('Populating %s for ',class(dj));
-        disp( key );
         startTransaction(dj);  % atomic transaction
         try
-            if isempty(restrict(dj,key))  % check again in case some other process has populated it
+            if ~isempty(restrict(dj,key))  
+                cancelTransaction(dj);
+            else
+                fprintf('Populating %s for ',class(dj));
+                disp( key );
                 makeTuples(dj,key);
                 commitTransaction(dj);
             end

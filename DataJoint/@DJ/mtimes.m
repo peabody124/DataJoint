@@ -6,12 +6,12 @@ function R1=mtimes(R1,R2)
 %
 %  :: Dimitri Yatsenko :: Created 2010-08-21 :: Modified 2010-11-07 ::
 
-common = intersect( ...
+% check that the joined relations do not have common fields that are blobs or opional
+commonIllegal = intersect( ...
     {R1.fields([R1.fields.isNullable] | [R1.fields.isBlob]).name},...
     {R2.fields([R2.fields.isNullable] | [R2.fields.isBlob]).name});
-
-if ~isempty(common) 
-    error( 'Attribute ''%s'' is optional or a blob. Exclude it from one of the relations before joining.', common{1} );
+if ~isempty(commonIllegal) 
+    error( 'Attribute ''%s'' is optional or a blob. Exclude it from one of the relations before joining.', commonIllegal{1} );
 end
 
 % merge field lists

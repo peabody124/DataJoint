@@ -8,7 +8,9 @@ function dj = addField( dj, name, type, comment, default )
 % 
 % :: Dimitri Yatsenko :: Created 2010-12-28 :: Modified 2011-01-06 ::
 
-assert( strcmp(name,lower(name)), 'capitalization is not allowed in attribute names: %s', name );
+assert( ischar(name) && length(name)>=1 ...
+    && ismember(name(1),['a':'z']) && all(ismember(name,['a':'z','_','0':'9']))...
+    , 'invalid field name ''%s''', name );
 if nargin<=4
     default = nan;
 end

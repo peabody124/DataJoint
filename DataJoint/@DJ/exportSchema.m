@@ -16,7 +16,7 @@ s = '';
 if nargin>=3
     s = classDirectory;
 end
-fprintf( fid, '%%%%%%%%%%%% SCHEMA %s %s %%%%%%%%%%%%', dj.conn.schemaClass, s ); 
+fprintf( fid, '%%%%%%%%%%%% SCHEMA %s %s. Generated %s %%%%%%%%%%%%', dj.conn.schemaClass, s, datestr(now) ); 
 disp('Retrieving the table list...');
 
 tables = getAllTables( dj ); 

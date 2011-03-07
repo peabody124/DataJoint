@@ -42,9 +42,12 @@ for tuple=tuples'
             end
         elseif dj.fields(i).isBlob
             queryStr = sprintf( '%s`%s`="{M}",', queryStr,dj.fields(i).name );
+            if islogical(v) % mym doesn't accept logicals
+                v = uint8(v); 
+            end
             blobs{end+1} = v;                                       %#ok<AGROW>
         else
-            if islogical(v)  % mym doesn't support logicals
+            if islogical(v)  % mym doesn't accept logicals
                 v = uint8(v);
             end
             assert( isscalar(v) && isnumeric(v), 'The field %s must be a numeric scalar value', dj.fields(i).name );

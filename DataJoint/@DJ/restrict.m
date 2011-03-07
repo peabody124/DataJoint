@@ -88,20 +88,20 @@ if ~isempty(key) || ~isempty(sqlCondition )
             end
         end
     end
-    assert(~isempty(sqlCondition),'missing restriction');
+    if ~isempty(sqlCondition)
+        % update selfExpression
+        if isBase(dj)
+            selfStr = '%s(''%s'')';
+        else
+            selfStr = 'restrict(%s,''%s'')';
+        end
+        dj.selfExpression = sprintf(selfStr,dj.selfExpression,regexprep(strtrim(sqlCondition),'''',''''''));
 
-    % update selfExpression
-    if isBase(dj)
-        selfStr = '%s(''%s'')';
-    else
-        selfStr = 'restrict(%s,''%s'')';
-    end
-    dj.selfExpression = sprintf(selfStr,dj.selfExpression,regexprep(strtrim(sqlCondition),'''',''''''));
-
-    % append the added condition to the total condition
-    if isempty(dj.sqlRes)
-        dj.sqlRes = [' WHERE ' sqlCondition];
-    else
-        dj.sqlRes = [dj.sqlRes ' AND ' sqlCondition];
+        % append sqlCondition to the total condition
+        if isempty(dj.sqlRes)
+            dj.sqlRes = [' WHERE ' sqlCondition];
+        else
+            dj.sqlRes = [dj.sqlRes ' AND ' sqlCondition];
+        end
     end
 end
