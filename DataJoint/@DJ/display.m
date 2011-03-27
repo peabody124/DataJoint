@@ -17,7 +17,7 @@ if isempty( dj.conn.table )
     end
 else
     if ~isBase(dj)
-        fprintf('\nDerived relation: %s', dj.selfExpression ); 
+        fprintf('\nDerived relation: %s', dj.selfExpression );
     else
         % load table comment
         tableComment = query(dj ...
@@ -56,10 +56,7 @@ else
                 fprintf('\nREFERENCING TABLES: %s', s(3:end));
             end
         end
-
-        if ~isempty(dj.populateRelation)
-            fprintf('\n    POPULATED FROM: %s', dj.populateRelation );
-        end
+        fprintf('\n    POPULATED FROM: %s', char(dj.populateRelation) );
     end
     fprintf( '\n             - ATTRIBUTES -\n' );
     for i=1:length(dj.fields)

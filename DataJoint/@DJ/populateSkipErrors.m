@@ -37,7 +37,6 @@ else
     end
 
     % call makeTuples(dj,key) for each key in keys as an atomic transaction.
-    dj.inPopulate = true;
     failedKeys = keys([]);
     errors = {};
     for key = flipud(keys)'
@@ -59,5 +58,4 @@ else
             end
         end
     end
-    dj.inPopulate = false;  % this is unnecessary in MATLAB's current implementation
 end

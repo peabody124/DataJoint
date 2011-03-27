@@ -3,7 +3,7 @@ function disp( dj )
 % Only non-blob fields of the first several tuples are shown. The total
 % number of tuples is printed at the end.
 %
-% :: Dimitri Yatsenko :: Created 2010-12-29 :: Modified 2011-01-06 :: 
+% :: Dimitri Yatsenko :: Created 2010-12-29 :: Modified 2011-03-21 :: 
 
 fprintf('\n');
 if isempty( dj.conn.table )
@@ -26,10 +26,9 @@ else
 
     % print rows
     maxRows = 24;
-    keys = fetch( dj )';
-    nTuples = length(keys);
-    for key = keys(1:min(end,maxRows))
-        s = fetch( restrict(dj,key), dj.fields(ix).name );
+    tuples = fetch( dj, dj.fields(ix).name );
+    nTuples = length(tuples);
+    for s = tuples(1:min(end,maxRows))'
         for iField = ix
             v = s.(dj.fields(iField).name);
             if isnumeric(v)

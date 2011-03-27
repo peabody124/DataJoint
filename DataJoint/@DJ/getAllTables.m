@@ -90,6 +90,13 @@ while ~isempty(K)
     K = K(nonorphans,nonorphans);
 end
 
+% lower level if possible
+for j=1:length(nodes)
+    ix = find(C(j,:));
+    if ~isempty(ix)
+        levels(j)=min(levels(ix)-1);
+    end
+end
 
 % sort nodes by hierarchical level
 [levels,ix] = sort(levels);

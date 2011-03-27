@@ -1,5 +1,7 @@
 function R=pro(R,varargin)
-% R=pro(R,attr1,...,attrn) - apply relational projection to relation R.
+% R=pro(R,attr1,...,attrn) - project relation R onto its attributes 
+% R=pro(R,Q,attr1,...,attrn) - project relation R onto its attributes and
+% onto aggregate attributes of relation Q.
 %
 % Read DataJoint.pdf for a review of the relational data model and the uses
 % of relational operators in DataJoint.
@@ -31,23 +33,36 @@ function R=pro(R,varargin)
 % Example 3. Rename attribute 'anesthesia' to 'anesth' in relation r1:
 %    >> r1 = pro( r1, '*','anesthesia->anesth');
 %
-% Example 4. Exclude attribute 'anesthesia' from relation r1.
-%    >> r1 = pro( r1, '*', '~anesthesia');
-%
-% Example 5. Add field mouse_age in days to relation r1 that has the field mouse_dob:
+% Example 4. Add field mouse_age in days to relation r1 that has the field mouse_dob:
 %    >> r1 = pro( r1, '*', 'datediff(now(),mouse_dob)->mouse_age' );
 %
-% :: Dimitri Yatsenko :: Created 2010-10-30 :: Modified 2011-02-28 ::
+% Example 5. Add field 'n' which contains the count of matching tuples in r2 
+% for every tuple in r1. Also add field 'avga' which contains the average
+% value of field 'a' in r2.
+%    >> r1 = pro( r1, r2, '*','count(*)->n','avg(a)->avga');
+% You may use the following aggregation functions: max,min,sum,avg,variance,std,count
+%
+% :: Dimitri Yatsenko :: Created 2010-10-30 :: Modified 2011-03-21 ::
 
-assert( iscellstr( varargin ), 'Projection attributes must be specified as strings' );
-if isempty(varargin)
+params = varargin;
+isGrouped = nargin>1 &&  isa(params{1},'DJ');
+if isempty(params)
     R.selfExpression = sprintf('pro(%s)',R.selfExpression);
 else
-    str = sprintf(',''%s''',varargin{:});
-    R.selfExpression = sprintf('pro(%s,%s)',R.selfExpression,str(2:end));
+    if isGrouped
+        Q = params{1};
+        params(1)=[];
+        str = sprintf(',''%s''',params{:});
+        R.selfExpression = sprintf('pro(%s,%s,%s)',R.selfExpression,Q.selfExpression,str(2:end));
+    else
+        str = sprintf(',''%s''',params{:});
+        R.selfExpression = sprintf('pro(%s,%s)',R.selfExpression,str(2:end));
+    end
 end
 
-[include,aliases,computedAttrs] = parseAttrList( R, varargin );
+assert( iscellstr(params), 'attributes must be provided as a list of strings');
+
+[include,aliases,computedAttrs] = parseAttrList( R,params);
 
 if ~all(include) || ~all(cellfun(@isempty,aliases)) || ~isempty(computedAttrs)
     R.fields = R.fields(include);
@@ -75,15 +90,27 @@ if ~all(include) || ~all(cellfun(@isempty,aliases)) || ~isempty(computedAttrs)
     end
 
     % update query
-    if strcmp(R.sqlPro,'*')
-        R.sqlPro = fieldList;
-    else
-        R.sqlSrc = sprintf('(SELECT %s FROM %s%s) as r',fieldList,R.sqlSrc,R.sqlRes);
+    if ~strcmp(R.sqlPro,'*')
+        R.sqlSrc = sprintf('(SELECT %s FROM %s%s) as r',R.sqlPro,R.sqlSrc,R.sqlRes);
+        R.sqlRes = '';
+    end
+    R.sqlPro = fieldList;
+
+    if isGrouped
+        keyStr = sprintf(',%s',R.primaryKey{:});
+        if isempty(Q.sqlRes) && strcmp(Q.sqlPro,'*')
+            R.sqlSrc = sprintf('(SELECT %s FROM %s NATURAL JOIN %s%s GROUP BY %s) as qq'...
+                , R.sqlPro, R.sqlSrc, Q.sqlSrc, R.sqlRes, keyStr(2:end) );
+        else
+            R.sqlSrc = sprintf('(SELECT %s FROM %s NATURAL JOIN (SELECT %s FROM %s%s) as q%s GROUP BY %s) as qq'...
+                , R.sqlPro, R.sqlSrc, Q.sqlPro, Q.sqlSrc, Q.sqlRes, R.sqlRes, keyStr(2:end) );
+        end
         R.sqlPro = '*';
         R.sqlRes = '';
     end
-
 end
+end
+
 
 
 function [include,aliases,computedAttrs] = parseAttrList( R, attrList )
@@ -100,13 +127,6 @@ computedAttrs = {};
 for iAttr=1:length(attrList)
     if strcmp('*',attrList{iAttr})
         include = include | true;   % include all attributes
-    elseif strncmp(attrList{iAttr},'~',1)
-        % exclude attributes prefixed by ~
-        exAttr=strtrim(attrList{iAttr}(2:end));
-        ix = find(strcmp(exAttr,{R.fields.name}));
-        assert(~R.fields(ix).isKey,'DJ: Cannot exclude primary key field `%s`.',exAttr)
-        assert(~isempty(aliases(ix)), 'DJ: Cannot exclude field `%s` because it has been aliased ',exAttr);
-        include(ix)=false;
     else
         % process a renamed attribute
         toks = regexp( attrList{iAttr}, '^([a-z]\w*)\s*->\s*(\w+)', 'tokens' );
@@ -130,4 +150,5 @@ for iAttr=1:length(attrList)
             end
         end
     end
+end
 end

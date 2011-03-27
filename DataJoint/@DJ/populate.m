@@ -33,7 +33,6 @@ else
     end
 
     % call makeTuples(dj,key) for each key in keys as an atomic transaction.
-    dj.inPopulate = true;
     for key = keys'
         startTransaction(dj);  % atomic transaction
         try
@@ -50,5 +49,4 @@ else
             rethrow(e);
         end
     end
-    dj.inPopulate = false;  % this is unnecessary in MATLAB's current implementation
 end

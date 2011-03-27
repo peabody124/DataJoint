@@ -24,7 +24,8 @@ fnames = fieldnames( tuples );
 found = ismember(fnames,{dj.fields.name});
 assert(all(found),'Field %s is not found in the table %s',fnames{find(~found,1,'first')},class(dj));
 ix = ismember({dj.fields.name},fnames);
-assert( all(ix([dj.fields.isKey])), 'Incomplete primary key' )
+ik = [dj.fields.isKey];
+assert(all(ix(ik)|~cellfun(@isempty,{dj.fields(ik).default})),'Incomplete primary key')
 
 % form query
 for tuple=tuples'

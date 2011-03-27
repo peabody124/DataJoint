@@ -1,10 +1,10 @@
 function str = getDeclaration( dj )
 % str = getDeclaration( dj ) - reverse engineer table dj to produce a script that
-% created the table and its class.  
+% created the table and its class.
 %
 % See also DJ/exportSchema
 %
-% :: Dimitri Yatsenko :: Created 2011-02-08 :: Modified 2011-02-10 ::
+% :: Dimitri Yatsenko :: Created 2011-02-08 :: Modified 2011-03-14 ::
 
 assert( isBase(dj), 'only base relations have DeclareDJ declarations' );
 
@@ -31,15 +31,23 @@ end
 if ~isempty( addKeys )
     for key = addKeys
         iField = find( strcmp( key{1}, {dj.fields.name} ) );
-        str = sprintf('%sddj=addKeyField(ddj,''%s'',''%s'',''%s'');\n', str,...
+        % add default value if any
+        default = dj.fields(iField).default;
+        defaultStr = '';
+        if ischar(default) && dj.fields(iField).isString
+            defaultStr = sprintf( ',''%s''',default);
+        elseif dj.fields(iField).isNumeric && ~isempty(default)
+            defaultStr = sprintf(',%g',default);
+        end
+        str = sprintf('%sddj=addKeyField(ddj,''%s'',''%s'',''%s''%s);\n', str,...
             dj.fields(iField).name,...
             regexprep(dj.fields(iField).type,'''','"'),...
-            regexprep(dj.fields(iField).comment,'''',''''''));
+            regexprep(dj.fields(iField).comment,'''',''''''),defaultStr);
     end
 end
 
 % set populate relation
-if ischar(dj.populateRelation) && ~isempty(dj.populateRelation) 
+if ischar(dj.populateRelation) && ~isempty(dj.populateRelation)
     str = sprintf('%sddj=setPopulateRelation(ddj,%s);\n', str, dj.populateRelation );
 elseif isa(dj.populateRelation,'DJ')
     str = sprintf('%sddj=setPopulateRelation(ddj,%s);\n', str, char(dj.populateRelation));

@@ -1,14 +1,13 @@
-function erd( dj, includeRefs, varargin )
+function erd( dj, varargin )
 % erd(dj) - plot the Entity Relationship Diagram of all tables linked to dj.
-% erd(dj,false); (default) -- only plot parent/child dependencies
-% erd(dj,true); -- also include reference dependencies.
-% erd(dj,true|false,dir1,...,dirn); -- only include tables whose classes
-% are defined in directories dir1,...,dirn.
+% erd(dj,dir1,...,dirn); -- only include tables whose classes are defined in
+% directories dir1,...,dirn.
 %
-% :: Dimitri Yatsenko :: Created 2010-12-29 :: Modified 2010-03-01 ::
+% :: Dimitri Yatsenko :: Created 2010-12-29 :: Modified 2010-03-26 ::
 
-includeRefs = nargin>=2 && includeRefs;
-[nodes,C,yi] = getAllTables(dj,includeRefs);
+includeReferences = false; 
+[nodes,C,yi] = getAllTables(dj,false);
+assert( iscellstr(varargin), 'directories must be provied as character strings' );
 
 % restrict to those classes that are in given directories
 if ~isempty(varargin)
@@ -19,6 +18,7 @@ if ~isempty(varargin)
         lst = cellfun( @(x) x(2:end), {lst.name}, 'UniformOutput', false );
         ix = union(ix,find(ismember(nodes,lst)));
     end
+    assert( ~isempty(ix), 'No table classes found matching directories' );
     nodes = nodes(ix);
     C = C(ix,ix);
     yi = yi(ix);
@@ -66,10 +66,10 @@ c = hsv(16);
 % plot edges
 for i=1:size(C,1)
     ci = round((yi(i)-min(yi))/(max(yi)-min(yi))*15)+1;
-    cc = c(ci,:)*0.3+0.2;
+    cc = c(ci,:)*0.3+0.4;
     for j=1:size(C,2)
         if C(i,j)
-            plot( xi([i j]), yi([i j]), '.-', 'Color', cc);
+            connect( xi([i j]), yi([i j]), '-', cc);
             hold on;
         end
     end
@@ -104,3 +104,16 @@ ylim( [min(yi)-0.5 max(yi)+0.5] );
 hold off;
 axis off;
 disp('done');
+end
+
+
+
+function connect( x, y, lineStyle, color )
+assert(length(x)==2 && length(y)==2 );
+plot( x, y, 'k.' );
+t = 0:0.01:1;
+x = x(1) + (x(2)-x(1)).*(1-cos(t*pi))/2;
+y = y(1) + (y(2)-y(1))*t;
+%x = x(1) + (x(2)-x(1))*t.*t.*(3-2*t);
+plot( x, y, lineStyle, 'Color', color );
+end

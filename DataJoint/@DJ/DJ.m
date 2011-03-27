@@ -17,7 +17,6 @@ dj.primaryKey = {};      % a column cell array containing primary key names
 dj.sqlRes   = '';   % the restriction portion of the sql statement, i.e. "WHERE ..."
 dj.sqlPro ='*';     % the projection portion of the sql statement, including renames
 dj.sqlSrc  = '';    % the source expression
-dj.inPopulate = false;  % true when the current object is within a populate call
 dj.populateRelation = '';  % the expression from which populate keys are enumerated
 dj.selfExpression = '';  % the MATLAB expression to obtain this relation
 dj = class( dj, 'DJ' );

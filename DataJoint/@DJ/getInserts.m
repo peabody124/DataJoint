@@ -7,7 +7,7 @@ function str = getInserts( dj )
 assert( ~any([dj.fields.isBlob]), 'no blobs allowed for this operation' );
 
 str = sprintf('dj=%s;\n',class(dj));
-head = sprintf('inserti(dj,struct(');
+head = sprintf('inserti(dj,');
 s=fetch( dj,'*');
 f=fieldnames(s);
 numeric = zeros(size(f));
@@ -32,7 +32,7 @@ for s = s'
             list = sprintf('%s,''%s'',''%s''',list,f{i},v);
         end
     end
-    str = sprintf('%s%s%s))\n',str,head,list(2:end));
+    str = sprintf('%s%s%s)\n',str,head,list(2:end));
 end
 str = sprintf('%sclear dj\n',str);  % clear the temporary variable to avoid bugs
 
