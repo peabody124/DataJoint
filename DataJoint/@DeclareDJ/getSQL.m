@@ -97,7 +97,7 @@ sql = sprintf( '%s\n    PRIMARY KEY(%s),',sql,pkeyStr(2:end));
 indices{1} = {keyFields.name}';
 name = this.tableName;
 name = name( ismember(name, ['a':'z' '0':'9' '_']) );
-if strcmp(this.tableType,'computed') || (strcmp(this.tableType,'imported') && isempty(this.populateRelation))
+if (strcmp(this.tableType,'computed') || (strcmp(this.tableType,'imported')) && isempty(this.populateRelation))
     propagate = 'ON UPDATE CASCADE ON DELETE CASCADE';  % only computed tables and imported grouped tables may be deleted in cascade
 else
     propagate = 'ON UPDATE CASCADE ON DELETE RESTRICT';

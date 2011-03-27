@@ -1,11 +1,11 @@
 function dj = execute(ddj)
 % CreateDJ/execute - executes the declaration of the table and its MATLAB
-% class specified by ddj. IF the table or the class already exist,
+% class specified by ddj. If the table or the class already exist,
 % their creation is skipped thereby making repeated executions safe.
 % Therefore, one must deliberately remove the existing table and class
 % before changes can take effect.
 %
-% :: Dimitri Yatsenko :: Created 2010-12-28 :: Modified 2011-01-02 ::
+% :: Dimitri Yatsenko :: Created 2010-12-28 :: Modified 2011-03-14 ::
 
 assert(~isempty(ddj.parentTables) || ~ismember(ddj.tableType,{'imported','computed'}),...
     'Automatically populated tables must have a parent table');
@@ -15,6 +15,7 @@ if ~isempty(which(ddj.className))
     fprintf('Found class constructor %s\n', which(ddj.className));
     fprintf('Did not generate a new class\n');
 elseif strcmpi('yes',input(sprintf('\nCreate class @%s in %s? yes/no >>',ddj.className,pwd),'s'))
+
     dirName = (['@' ddj.className]);
     mkdir(dirName);
     cd(dirName);
@@ -73,6 +74,8 @@ else
     fprintf('Created table "%s"\n', ddj.tableName );
 end
 
-% convert ddj into the new DataJoint class
-dj = eval( [ddj.className ';']);
+if nargout>=1
+    % convert ddj into the new DataJoint class
+    dj = eval( [ddj.className ';']);
+end
 end
