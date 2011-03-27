@@ -111,9 +111,8 @@ end
 function connect( x, y, lineStyle, color )
 assert(length(x)==2 && length(y)==2 );
 plot( x, y, 'k.' );
-t = 0:0.01:1;
+t = 0:0.05:1;
 x = x(1) + (x(2)-x(1)).*(1-cos(t*pi))/2;
 y = y(1) + (y(2)-y(1))*t;
-%x = x(1) + (x(2)-x(1))*t.*t.*(3-2*t);
 plot( x, y, lineStyle, 'Color', color );
 end

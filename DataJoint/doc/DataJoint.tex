@@ -1,8 +1,8 @@
 \documentclass[10pt]{article}
 %\usepackage{geometry} % see geometry.pdf on how to lay out the page. There's lots.
-\usepackage[left=3cm,top=3cm,right=3cm,bottom=3cm]{geometry}
+\usepackage[left=1in,top=1in,right=1in,bottom=1in]{geometry}
 \geometry{letterpaper} % or letter or a5paper or ... etc
-
+\usepackage{amsmath}
 \usepackage{graphicx}
 \usepackage{amssymb}
 \usepackage{epstopdf}
@@ -35,7 +35,7 @@
 
 \title{DataJoint Tutorial}
 \date{\today} % delete this line to display the current date
-\author{Dimitri Yatsenko, Alexander Ecker, Andreas S. Tolias}
+\author{Dimitri Yatsenko, Alexander Ecker, Andreas S. Tolias\\{\small Baylor College of Medicine}}
 
 \begin{document}
 \maketitle
@@ -45,6 +45,17 @@
 \subsection{What is DataJoint}
 DataJoint is a MATLAB tool for the distributed processing and management of large volumes of data in a science lab.  DataJoint is built on the foundation of the \href{http://en.wikipedia.org/wiki/Relational_model}{relational data model} and prescribes a consistent method for organizing, populating, and querying the data with minimal chance of loss of data integrity.
 
+\subsection{Conditions of use}
+DataJoint is available for free use and distribution under the GNU General Public License version 3 (\url{http://www.gnu.org/licenses/gpl.html})
+
+We also request that any lab using DataJoint for processing data leading to a publication acknowledge this fact by including a variant of the following statement in their publication:
+\begin{quote}
+"The data processing chain for this publication was implemented using the DataJoint library from Andreas S. Tolias' lab at Baylor College of Medicine, Houston, TX''
+\end{quote}
+
+\subsection{Resources}
+DataJoin code and documentation may be downloaded from \url{http://code.google.com/p/datajoint/}.  Although we cannot provide technical support, common questions may be address in the wiki and user forum sections of the website.
+
 \subsection{History}
 DataJoint was developed by Dimitri Yatsenko in Andreas Tolias' lab at Baylor College of Medicine beginning in October 2009 with the first alpha release scheduled for March 2011. DataJoint was inspired in part by the earlier data management tool in the lab called Steinbruch developed by Alex Ecker and Philipp Berens.
 
@@ -52,7 +63,7 @@ DataJoint was developed by Dimitri Yatsenko in Andreas Tolias' lab at Baylor Col
 We assume that the reader is proficient with MATLAB and its object-oriented features in particular.  Readers do not need to be a priori familiar with relational databases but will need to master the basic relational concepts presented in this tutorial. We also assume the availability of a MySQL server in the lab with accounts and schemas for each user. The installation and administration of the MySQL server is not covered in this tutorial.
 
 \subsection{Foundations}
-DataJoint adheres faithfully to the theoretical rigor and simplicity of the relational model\footnote{See C.~Date, {\em SQL and Relational Theory}, 1$^{\textrm{st}}$ Edition, O'Reilly, 2009.}. This discipline then allows avoiding common pitfalls of data organization and affords simpler ways of querying data from multiple tables.   DataJoint's relational operators are \href{http://en.wikipedia.org/wiki/Algebraic_closure}{algebraically closed}, which means that their outputs can be assigned to variables and be used as operands in the next expression. As the result, even skilled SQL programmers may prefer formulating precise queries in DataJoint to composing analogous SQL code while novice users will quickly become proficient and efficient with a minimal set of correct relational concepts bypassing SQL's arcane syntax.
+DataJoint adheres faithfully to the theoretical rigor and simplicity of the relational model\footnote{See C.~Date, {\em SQL and Relational Theory}, 1$^{\textrm{st}}$ Edition, O'Reilly, 2009.}. This discipline then allows avoiding common pitfalls of data organization and affords simpler ways of querying data.   DataJoint implements an intuitive relational algebra which allow formulating succinct and precise queries.  As the result, even skilled SQL programmers may prefer DataJoint queries to SQL  while novice users will quickly become proficient and efficient with a minimal set of correct relational concepts bypassing SQL's arcane syntax.
 
 DataJoint relies on MySQL's native constructs for data organization.  All data organized in DataJoint is transparently accessible by other database interfaces.
 
@@ -61,9 +72,10 @@ The current version of DataJoint is developed in MATLAB 2007. For its database i
 
 DataJoint comprises two MATLAB classes: \mcode{DeclareDJ} and \mcode{DJ}.  
 
-\mcode{DeclareDJ} is used for data definition. It creates tables and sets their dependencies under a set of conventions that encourage a solid relational data model. 
+Class \mcode{DeclareDJ} helps declare and organize tables with data. Each table in a DataJoint schema has a homonymous class that inherits from class \mcode{DJ}.
 
-\mcode{DJ} implements all data query and manipulation functionality. Each table in a DataJoint schema has a homonymous class inheriting its functionality from \mcode{DJ}. \mcode{DJ} supports a relationally complete algebra that affords flexible, expressive, and succinct data queries.
+Class \mcode{DJ} implements all data query and manipulation functionality. \mcode{DJ} supports a relationally complete algebra that affords flexible, expressive, and succinct data queries.
+
 
 \newpage\section{The relational data model: basic concepts}
 \subsection{Background}
@@ -80,16 +92,18 @@ A {\em tuple} is a set of attribute name/value pairs. For example, the tuple
 
 in a given relation may represent a real-world fact such as ``On Oct.~10, 2010, mouse \#1001 weighed 21.5 grams.''  An attribute name is more than just a name: it implies a particular {\em datatype} and a unique {\em role} in the tuple and in the external world.  Thus attribute names must be unique in a tuple and their order in the tuple is not significant.  
 
-The closest equivalent of a tuple in Matlab is a structure. Therefore, we will use the terms {\em attribute} and {\em field} interchangeably.
+The closest equivalent of a tuple in Matlab is a structure. We will use the terms {\em attribute} and {\em field} interchangeably.
 
 
 \subsection{Relations}
-A relation is a set of tuples that all have the same set of attribute names. No duplicate tuples can exist in a relation.  The ordering of tuples in a relation is not significant.  
+A relation is a set of tuples that share the same set of attribute names. No duplicate tuples can exist in a relation.  The ordering of tuples in a relation is not significant.  
 
 Starting with {\em base relations} corresponding to {\em tables} in the database, we can transform them into {\em derived relations} by applying {\em relational operators} until they contain only all the necessary information, and then retrieve their values into the MATLAB workspace.  We will use the term {\em table} and {\em base relation} interchangeably. 
 
 \subsection{Matching tuples}\label{sec:matching}
-The key concept at the foundation of data manipulations in the relational model is {\em tuple matching}.  Two tuples match if their identically named attributes contain equal values.  Here are some examples: Two tuples may be merged into one if they match but not otherwise.  One tuple may be used to address other matching tuples in a relation.  The {\em join} (see \autoref{sec:join}) of two relations is the set of all matching pairs from the two relations, merged.
+The key concept at the foundation of data manipulations in the relational model is {\em tuple matching}.  Two tuples match if their identically named attributes contain equal values.  
+
+Thus one tuple may be used to address a group of  other matching tuples in a relation (see \autoref{sec:restrict}). Two tuples may be merged into one if they match, but not otherwise.    The {\em join} (see \autoref{sec:join}) of two relations is the set of all possible merged pairs from the two original relations.
 
 \subsection{Primary key}
 In DataJoint, each relation must have a {\em primary key}, i.e.~a subset of its attributes that are designated to uniquely identify any tuple in the relation. No two tuples in the same relation can have the same combination of values in their primary key fields.  To uniquely identify a tuple in the relation, one must provide the values of the primary key fields as a matching tuple. 
@@ -111,12 +125,12 @@ Every table in a DataJoint schema is assigned one of the four tiers: {\em lookup
    \item{\bf Lookup tables} contain information that is involved in setting up the processing chain itself: filter settings, algorithm parameters, etc.  Lookup tables are populated manually.
    \item{\bf Manual tables} contain information about experiments that is entered manually, e.g. subject information, independent variables, acquisition settings, visual observations, and paths to recorded data.  Due to their high value and small size, manual tables are backed up most frequently (e.g.~at every update).
    \item{\bf Imported tables} contain information extracted from  files outside the database (e.g.~raw recordings).  Raw recordings are typically in large files that cannot be kept online indefinitely. Once the extraction algorithms have stabilized and the extracted  data have been imported into the database, the raw recordings may be taken offline.  Imported tables are populated automatically and need to be backed up regularly, especially after the raw data files have been taken offline. 
-   \item {\bf Computed tables} are populated automatically with data computed from other data already present in the database.  Data from computed tables are deleted automatically when their parent data are deleted. Computed tables do not typically need to be backed up at all.
+   \item {\bf Computed tables} are populated automatically with data computed from other data already present in the database.  Computed tables do not typically need to be backed up at all.
 \end{enumerate}  
 
 
-\subsection{Illustration schema}
-To illustrate DataJoint usage in practice, we provide a snippet of an actual schema used in our lab in \autoref{sec:vis2p}.
+\subsection{Schema example}
+To illustrate DataJoint usage in practice, \autoref{sec:vis2p}. shows a snippet of a schema named \mcode{Vis2p} used in our lab.
 
 
 \newpage\section{Defining tables}\label{sec:definition}
@@ -124,13 +138,13 @@ To illustrate DataJoint usage in practice, we provide a snippet of an actual sch
 This section explains how to create a set of interdependent tables with referential constraints using the class \mcode{DeclareDJ}.
 
 \subsection{Create a MySQL schema}
-First, have the database administrator create a dedicated schema for your project.  You will receive the host name, username, password, and the schema name.
+First, ask your database administrator to create a dedicated schema for your project.  You will receive the host name, username, password, and the schema name.
 
 \subsection{Define the schema class}
 
-For every schema, there must exist an abstract class which assigns the connection parameters and inherits from \mcode{DJ} all the relational methods.  All other will inherit from the schema class and will know how to connect to the database.  
+For every schema, there must exist an abstract class which assigns the connection parameters and inherits from \mcode{DJ} all the relational methods.  All other classes will inherit from this schema class and will know how to connect to the database.  
 
-The following code is the constructor for schema class \mcode{Vis2p}, which retrieves schema connection information from the global variable defined in the startup script. 
+The \mcode{Vis2p} constructor below sets the schema connection parameters:
 
 \begin{lstlisting}
 function obj = Vis2p( tableName, varargin )
@@ -150,9 +164,7 @@ In practice the connection parameters may be stored in a global variable that is
 
 \subsection{Declare tables} 
 \subsubsection{Instantiate a \mcode{DeclareDJ} object}
-Various types of discrete facts about your study must be assigned their own tables in the database. Let's begin with manually populated tables \mcode{Mice}, \mcode{Sessions}, and \mcode{Scans}. These tables contain information about mice used in experiments, two-photon imaging sessions performed on these mice, and individual two-photon recordings (scans) performed within each session.  
-
-See the declarations of tables \mcode{Mice}, \mcode{Sessions}, and \mcode{Scans} in \autoref{sec:mice}.
+Various types of discrete facts about your study must be assigned their own tables in the database. Let's begin with manually populated tables \mcode{Mice}, \mcode{Sessions}, and \mcode{Scans} (\autoref{sec:mice}). These tables contain information about mice used in experiments, two-photon imaging sessions performed on these mice, and individual two-photon recordings (scans) performed within each session.  
 
 Each declaration begins by instantiating the object \mcode{ddj} of class \mcode{DeclareDJ} and specifies the schema class (\mcode{Vis2p} in this example), the table name, and the table tier ({\em manual}, {\em lookup}, {\em imported}, or {\em computed} as described \autoref{sec:tiers}). 
 
@@ -161,25 +173,29 @@ Tables may be independent (e.g.~\mcode{Mice}) or subordinate (e.g.~\mcode{Sessio
 
 Use the \mcode{ddj=addParent(ddj,P1,..,Pn)} method to set the parent/child dependency in a declaration, where \mcode{P1},\ldots,\mcode{Pn} are existing tables.
 
-\subsubsection{Add primary key fields}  Each table must have a primary key: one field or a combination of fields that uniquely identify a row in the table.  The database uses the primary key to prevent duplicate entries, to relate data across tables, and to accelerate data queries. The choice of the primary key will determine how you identify data elements. Therefore, make the primary key {\bf short}, {\bf expressive}, and {\bf persistent}. Integers, dates, and timestamps make best primary key fields. To protect users from choosing poor primary key fields, DataJoint prohibits character strings, enums, and blobs from primary keys.
-
+\subsubsection{Add primary key fields}  Each table must have a primary key: one field or a combination of fields that uniquely identify a row in the table.  The database uses the primary key to prevent duplicate entries, to relate data across tables, and to accelerate data queries. The choice of the primary key will determine how you identify data elements. Therefore, make the primary key {\bf short}, {\bf expressive}, and {\bf persistent}.
 For example, mice in our lab are assigned unique IDs. The mouse ID can serve as the primary key for the table \mcode{Mice}. 
 
-Use the \mcode{ddj=addKeyField(ddj,'datatype','comment')} method to add one or more primary key fields.  The allowed datatypes are listed in \autoref{sec:datatypes}.  
-
+Add another primary key field as
+\begin{lstlisting}
+ddj=addKeyField(ddj,'datatype','comment');
+\end{lstlisting}
+See \autoref{sec:datatypes} for supported datatypes.  Integers, dates, and timestamps make best primary key fields. To protect users from choosing poor primary key fields, \mcode{DeclareDJ} prohibits character strings, enums, and blobsin primary keys.
 
 Subordinate tables automatically inherit the union of the primary key fields of their parent tables.  In the case of one-to-one dependencies, no additional key fields are needed (e.g.~table \mcode{Stims} in \autoref{sec:stims} inherits its entire primary key from table table \mcode{Scans}). If multiple tuples are possible for each tuple in the parent table, then an additional key field is necessary to distinguish tuples that belong to a single tuple in the parent table.
 
 
-A primary key comprising real-world attributes is called a \href{http://en.wikipedia.org/wiki/Natural_key}{natural primary key}.  If no convenient natural key already exists, you may choose to introduce a \href{http://en.wikipedia.org/wiki/Surrogate_key}{surrogate primary key}, i.e.~an artificial attribute whose purpose is to uniquely identify data elements.  An institutional process must ensure the uniqueness and permanence of a surrogate key. For example, the U.S.~government assigns every worker a surrogate attribute, the social security number, but the government must go to great lengths to ensure that this primary key is assigned exactly once by checking against another less convenient candidate key (the combination of name, parents' names, date and place of birth, etc.)  Just like the SSN, well managed surrogate keys tend to get institutionalized and become natural.  
+A primary key comprising real-world attributes is a \href{http://en.wikipedia.org/wiki/Natural_key}{natural primary key}.  If no convenient natural key already exists, you may choose to introduce a \href{http://en.wikipedia.org/wiki/Surrogate_key}{surrogate primary key}, i.e.~an artificial attribute whose purpose is to uniquely identify tuples in a table.  An institutional process must ensure the uniqueness and permanence of a surrogate key. For example, the U.S.~government assigns every worker a surrogate attribute, the social security number, but the government must go to great lengths to ensure that this primary key is assigned exactly once by checking against another less convenient candidate key (the combination of name, parents' names, date and place of birth, etc.)  Just like the SSN, well managed surrogate keys tend to get institutionalized and become natural.  
 
 
 \subsubsection{Add non-key table fields}
-Non-key (or dependent) fields carry the useful information that is identified by the primary key.  Use the \mcode{ddj=addField(ddj,'datatype','comment'[,defaultValue])} method to add non-key fields to a table declaration.
+Non-key (or dependent) fields carry the useful information that is identified by the primary key.  To add another non-key field to a table, use 
+\begin{lstlisting}
+ddj=addField(ddj,'datatype','comment'[,defaultValue]);
+\end{lstlisting}
+Field names must be sufficiently descriptive to communicate their role in the relation.  Avoid using the same field name in different tables: For example, if both the  \mcode{Sessions} and \mcode{Scans} tables have a comment field, give them different names, e.g.~\mcode{sess_comment} and \mcode{scan_comment}.
 
-Field names must be sufficiently descriptive to identify their role in the relation.  Avoid using the same field name in different tables: For example, if both the  \mcode{Sessions} and \mcode{Scans} tables have a comment field, give them different names, e.g.~\mcode{sess_comment} and \mcode{scan_comment}.
-
-Although not recommended, an optional default value can be specified for each non-key field. If the default value is \mcode{[]}, the field value is altogether optional (i.e. can be null).  Only numeric and blob fields can be null.  For optional character string fields and enums, use the default value of \mcode{''} (empty string).  Null fields may cause some unintuitive behavior and are best avoided.  It a field does not apply to all the tuples in a table, it probably belongs in a separate table.
+Although not recommended, an optional default value can be specified for each non-key field. If the default value is \mcode{[]}, the field value is altogether optional (i.e. can be null).  Only numeric and blob fields can be null. Missing field values will retrieved as empty cells (for blob fields) or NaNs (for numeric fields).  Null values in optional fields may yield nonintuitive results in logical expressions and are best avoided: if a field does not apply to all the tuples in a table, it probably belongs in a separate table. For optional character string fields and enums, use the default value of \mcode{''} (empty string), which will result in the empty field instead of null for missing values.
 
 \subsubsection{Field datatypes}\label{sec:datatypes}
 The following datatypes are supported by DataJoint:
@@ -187,58 +203,66 @@ The following datatypes are supported by DataJoint:
 \item[enum] one of several explicitly enumerated values specified as strings. Use this datatype instead of text strings to avoid spelling variations and to save storage space.  For example, for anesthesia, the datatype could be \mcode{enum} with values \mcode{"urethane"} and \mcode{"isoflurane"}.  Do not use enums in primary keys if you plan to change the enum values in the future.
 \item[date] date as \mcode{'YYYY-MM-DD'}.
 \item[timestamp]  Date and time to the second.  Also can be configured to timestamp data entries automatically.
-\item[char]  a text string of specified length. Rarely used.
-\item[varchar]  a text string of arbitrary length up to maximum length. Specify the max length. 
-\item[decimal]  a number with a fixed number of fractional digits.  This is helpful to represent numbers whose magnitude is well defined and does not warrant the use of floating-point representation.  Specify the total number of decimal digits and the number of fractional digits.  Check \mcode{unsigned} if the values can only be nonnegative.
+\item[char(N)]  a character string that takes exactly \mcode{N} characters of storage.
+\item[varchar(N)]  a text string of arbitrary length up to \mcode{N} characters. 
+\item[decimal(N,F)]  a fixed-point number with \mcode{N} total decimal digits and \mcode{F} fractional digits. This datatype is well suited to represent numbers whose magnitude is well defined and does not warrant the use of floating-point representation..  
+\item[decimal(N,F) unsigned] same, but limited to nonnegative values. 
 \item[float]  a single precision floating-point number.  Takes 4 bytes.  Single precision is sufficient for many measurements.
 \item[double]  a double precision floating-point number. Takes 8 bytes.  
-\item[int] a 32-bit integer number, ranging from -2,147,483,648 to 2,147,483,647.  Check \mcode{unsigned} to limit to nonnegative values, in which case the range is from 0 to 4,294,967,295.
-\item[smallint] a 16-bit integer number, ranging from -32,768 to 32,767.  Check \mcode{unsigned} to limit to nonnegative values, in which case the range is from 0 to 65,535.
-\item[tinyint] an 8-bit integer number, ranging from -128 to 127.   Check \mcode{unsigned} to limit to nonnegative values, in which chase the range is from 0 to 255.
+\item[tinyint] an 8-bit integer number, ranging from -128 to 127.  
+\item[tinyint unsigned] an 8-bit integer number, ranging from 0 to 255.
+\item[smallint] a 16-bit integer number, ranging from -32,768 to 32,767.
+\item[smallint unsigned] a 16-bit positive integer, ranging from 0 to 65,535.
+\item[mediumint] a 23-bit integer number, ranging from -8,388,608 to 8,388,607.  
+\item[mediumint unsigned] a 24-bit positive integer, ranging from 0 to 16,777,216.
+\item[int] a 32-bit integer number, ranging from -2,147,483,648 to 2,147,483,647.  
+\item[int unsigned] a 32-bit positive integer, ranging from 0 to 4,294,967,295.
 \item[longblob] for MATLAB matrices, images, structures, and objects, up to 4 \href{http://en.wikipedia.org/wiki/Gibibyte}{GiB} in size.  DataJoint also allows smaller blobs 
 {\bf mediumblob}, {\bf blob}, and {\bf tinyblob} to store up to 16 MiB, 64 KiB, and 256 B, respectively. 
 \end{description}
 
 Use the smallest most restrictive datatype sufficient for your data.  
 
-If the field value is allowed to be missing from the table, specify the default value as \mcode{[]}. Missing field values will retrieved as empty cell arrays, empty strings, or NaNs, depending on the data type.
 
 \subsubsection{Add reference fields}\label{sec:reference}
-Reference fields are rarely necessary in DataJoint but may be helpful in some cases. Reference fields are the primary key fields of another table that is not a parent of the declared table.  These fields are automatically added as non-key fields.
+Reference fields are rarely necessary in DataJoint but may be helpful for some types of constraints. Reference fields are the extra primary key fields of another table that are added as non-key fields to the current declaration.  Values in reference fields may be entered only if they exist in the referenced table.
 
 Use the \mcode{ddj = addReference(ddj,TableName)} to add reference fields. 
 
-For example, the table \mcode{StimsOriPresentations} (\autoref{sec:stims}) is already uniquely identified for each tuple in its parent \mcode{Stims} by its extra primary key field \mcode{presnum}.  To refer to tuples in a related table \mcode{StimsOriConditions}, the declaration include the \mcode{addReference}. This adds the field \mcode{cond_idx} to \mcode{StimsOriPresentations} which can only be set to a value that matches a tuple in \mcode{StimsOriConditions}.
-The same problem could be addressed by making \mcode{StimsOriConditions} the parent of \mcode{StimsOriPresentations} with a small difference in referential constraints.
+For example, the table \mcode{StimsOriPresentations} (\autoref{sec:stims}) is already uniquely identified for each tuple in its parent \mcode{Stims} by its extra primary key field \mcode{presnum}.  To refer to tuples in a related table \mcode{StimsOriConditions}, the proper reference is added, which adds the field \mcode{cond_idx} to \mcode{StimsOriPresentations}.  The same aim could have been achieved by making \mcode{StimsOriConditions} the parent of \mcode{StimsOriPresentations}, in which case the uniqueness of values in field \mcode{presnum} would not be enforced.
 
 \subsubsection{Omit the timestamp field}
-By default, \mcode{DeclareDJ} will add an automatic timestamp field, which will contain the date and time of the last update of each tuple. To omit the timestamp field, use the \mcode{ddj=omitTimstamp(ddj);} command.
+By default, \mcode{DeclareDJ} will add an automatic timestamp field, which will contain the date and time of the last update of each tuple. To omit the timestamp field, add 
+\begin{lstlisting}
+ddj=omitTimstamp(ddj);
+\end{lstlisting}
 
 \subsubsection{Execute the declaration}
-Use the \mcode{execute(ddj)} method to create the table in the database and generate its MATLAB class in the current directory. 
+Finally, to create the table in the database and to generate its MATLAB class in the current directory, execute
+\begin{lstlisting} 
+execute(ddj);
+\end{lstlisting}
 
-It is safe to \mcode{execute(ddj)} multiple times without overwriting an existing table. To modify an existing table, drop the existing table first, e.g.:
+Declarations may be executed multiple times without the risk of overwriting existing tables or existing code. To modify an existing table, drop it first:
 \begin{lstlisting}
->> drop( Mice );  % drop table Mice from the database
+>> drop(Mice);  % drop table Mice from the database
 \end{lstlisting}
 
 \subsection{Set the table comment}
 To add a brief description to the table, use the \mcode{DJ/setTableComment} method
 \begin{lstlisting}
-   setTableComment( Mice, 'Mouse information' );
+setTableComment(Mice, 'Mouse information');
 \end{lstlisting}
 
 \subsection{Viewing tables}
-Once the table declaration is executed, you may start interacting with it immediately using its class.
-
-To view the table attributes, use the \mcode{DJ/display} method (or simply omit the trailing semicolon):
+You may start interacting with the new table immediately. To view the table attributes, use the \mcode{DJ/display} method (or simply omit the trailing semicolon after an object of the class):
 \begin{lstlisting}
 >> display(Mice);
 or
 >> Mice
 \end{lstlisting}
 
-To view the current contents of the table, use the \mcode{DJ/disp} method, or the trailing apostrophe:
+To view the current contents of the table, use the \mcode{DJ/disp} method or apply the apostrophe operator to an object of the class:
 \begin{lstlisting}
 >> disp(Mice);
 or
@@ -248,25 +272,27 @@ or
 Finally, to see the diagram of all or some of the tables in the your schema, use the \mcode{erd} command (\autoref{sec:erd}).
 
 \subsection{Reverse engineering existing tables}
-To get the \mcode{DeclareDJ} declaration of an existing table, use the \mcode{DJ/getDeclaration} method. This is particularly useful table design is changed by other means (e.g. through Navicat or the MySQL Workbench) after its initial declaration. Use \mcode{DJ/exportSchema} to generate an m-file with declarations for all the tables in the schema.
+Use the \mcode{DJ/getDeclaration} method to get the \mcode{DeclareDJ} declaration of an existing table, 
+
+Use \mcode{DJ/exportSchema} to generate an m-file with declarations for all or some of the tables in the current schema.
 
 
 \subsection{Referential integrity}
 DataJoint supports only two types of data manipulations that preserve data dependencies: inserting tuples and deleting tuples from base relations. As long as only these operations are performed, DataJoint ensures that all data are matched correctly, all computations are up-to-date, and all inseparable groups of tuples are complete.
 
-It may be useful to go around these constraints, which can be done through another database interface (e.g. Navicat or the MySQL Workbench), in which case the user takes responsibility that the changes do not introduce inconsistencies.
+It may be useful to go around these constraints, which can be done through any other database interface (e.g. Navicat or the MySQL Workbench), in which case the user takes responsibility for the consistency of introduced changes. 
 
 The database will enforce referential integrity of the data across multiple tables:  An attempt to insert a tuple into a dependent table before its matching tuples are present in all the parent tables will result in error.  Conversely, a group of tuples cannot be deleted from a table if any one of them has matching tuples in any of the dependent tables.
 
 
 \subsection{Keep tables normalized}
-Under the relational model, each column in the table should contain the simplest datum as opposed to a complex structure to be parsed later.  It may be tempting to place complex structures into a single blob field while the more appropriate course of action is to separate the structure into separate fields and even separate tables.   Break up structures into their own columns or tables to allow more specific queries later.  Yet, some large objects such as  images or traces are always manipulated as an atomic datum and should be kept together in a single attribute.  In summary, if you plan to search by the value of an attribute or retrieve it separately from others, it needs its own column.
+Under the relational model, each column in the table should contain the simplest datum as opposed to a complex structure to be parsed later.  It may be tempting to place complex structures into a single blob field while the more appropriate course of action is to separate the structure into separate fields and even separate tables.   However, some large objects such as images or traces are always manipulated as an atomic datum and should be kept together in a single field.  In summary, if you plan to search by the value of an attribute or retrieve it separately from other attributes, it needs its own field.
 
-Before learning the relational model, most database programmers tend to lump too many things in one table similar to working with spreadsheets.  Relations are not spreadsheets.  \href{http://en.wikipedia.org/wiki/Database_normalization}{Database normalization} is the systematic process of dividing tables into separate simpler tables until they approach the definition of a relation. In fully normalized tables information is stored exactly once and is precisely related to other information, thus precluding many anomalies arising from data manipulations.  The relational model prescribes formal rules called \href{http://en.wikipedia.org/wiki/Database_normalization}{Normal Forms} to decide how tables should be divided.  A useful (but optional) exercise is to review the first three normal forms applicable to DataJoint: \url{http://dev.mysql.com/tech-resources/articles/intro-to-normalization.html}.
+Before learning the relational model, most programmers tend to lump too many things in one table similar to working with spreadsheets.  Relations are not spreadsheets.  \href{http://en.wikipedia.org/wiki/Database_normalization}{Database normalization} is the systematic process of dividing tables into separate simpler tables until they meet formal sets of criteria known as \href{http://en.wikipedia.org/wiki/Database_normalization}{Normal Forms}. Properly normalized tables store all information exactly once and relate it precisely to other information, precluding many anomalies arising in data manipulations.  For extra credit, review the first three normal forms applicable to DataJoint: \url{http://dev.mysql.com/tech-resources/articles/intro-to-normalization.html}, \url{http://en.wikipedia.org/wiki/First_normal_form}, \url{http://en.wikipedia.org/wiki/Second_normal_form}, and \url{http://en.wikipedia.org/wiki/Third_normal_form}.
 
-The normal forms have been humorously summed up by this solemn oath: ``Every attribute in a table must relate a fact about the primary key, the whole key, and nothing but the key -- so help me (Edgar F.) Codd."  If some attributes are not directly associated with the entire primary key, they must reside in a different table with a different primary key.  As you design your first tables, you will quickly gain intuition as to which fields belong together in the same table.  Table design, including the choice of primary and foreign keys, will effectively communicate and enforce the rules and the structure of your study.  As rules change, you can change the structure of your schema or design a new schema altogether and migrate your old data there.
+The normal forms have been humorously summed up by this solemn oath: ``Every attribute in a table must relate a fact about the primary key, the whole key, and nothing but the key --- so help me (Edgar F.) Codd."  If some attributes are not directly associated with the entire primary key, they must reside in a different table with a different primary key.  As you design your first tables, you will quickly gain intuition as to which fields belong together in the same table.  Table design, including the choice of the primary keys and table dependencies, will effectively communicate and enforce the rules and the structure of your data.  As rules change, you can change the structure of your schema or design a new schema altogether and migrate your old data there.
 
-Here are a few common signs indicating that your table needs to be split:
+Here are a few common signs indicating that a table may need to be split:
 \begin{enumerate}
 \item The same data needs to be entered or updated in more than one place, possibly in different forms.  This indicates that the duplicated data must be moved to their separate table and referred to by other tables. 
 \item Some attributes do not apply to all tuples in a table.  Your table appears to contain different kinds of facts, which is not allowed in a normalized design. You will need to split this table into two with different sets of attributes. 
@@ -295,23 +321,26 @@ You may also enter data interactively using \mcode{DJ}'s \mcode{enter} method, e
 This method opens a new form for each tuple, carries values over from a previously entered tuples, and warns the user if she attempts to enter a duplicate tuple. Furthermore, \mcode{enter} opens forms for dependent manual tables carrying over the primary keys from the root table.
 
 \subsection{Upload from  .MAT files and download to .MAT files}
-\mcode{DJ} methods \mcode{download} and \mcode{downloadAll} save data from tables locally in .MAT files.  The data may then be uploaded using methods \mcode{upload} and \mcode{uploadAll}.  See these methods' help sections for details. These methods may also be used in a backup procedure.
+\mcode{DJ} methods \mcode{download} and \mcode{downloadAll} save data from tables locally in .MAT files.  The data may then be uploaded using methods \mcode{upload} and \mcode{uploadAll}.  See these methods' help pages for details. These methods may also be used in a backup procedure.
 
-\subsection{Entering data through a third-party database interface}
-Free versions of database interfaces (e.g.~Navicat Lite, MySQL Workbench) allow editing tables as spreadsheets.  This has the advantage of a more visual and interactive experience but lacks data protection mechanisms that are enforced by DataJoint's MATLAB functions.  Under DataJoint, tuples can only be inserted or deleted in their entirety. All dependency constraints are enforced as long as only these operations are performed.  This implies that if a tuple is changed (deleted and reinserted), all its dependent tuples in dependent tables must be deleted first.  Through database interfaces, users can go around these restriction and edit individual fields.  This extra flexibility may result in violating dependencies.  For example, a changed value in a field in a manual table will not be propagated to a calculation that used it in a dependent computed table.  In addition, unintentional or misplaced edits are more likely in such direct manipulations. 
-
-These risks notwithstanding, direct manual entry through the Navicat interface remains most common in our lab. 
+\subsection{Entering data through third-party database interfaces}
+Free versions of database interfaces (e.g.~Navicat Lite, MySQL Workbench) allow editing tables as spreadsheets.  This has the advantage of a more visual and interactive experience but lacks data protection mechanisms that are enforced by DataJoint's MATLAB-side utilities.
 
 \subsection{Delete}
 If you wish to delete all tuples from a table, use the \mcode{delete} command on the entire table. 
 \begin{lstlisting}
->> delete( Sessions );
+>> delete(Sessions);
 \end{lstlisting}
 
 To delete a specific tuple, specify its primary key in a structure and use it to restrict the relation before deleting:
 \begin{lstlisting}
 >> key = struct('mouse_id',2,'sessnum',3);
->> delete( Sessions(key) );
+>> delete(Sessions(key));
+\end{lstlisting}
+
+The \mcode{delete} method allows restricting the deleted set of tuples using {\em restrict}, {\em semijoin}, and {\em antijoin} operators, (see \autoref{sec:operators}). For example, to delete all \mcode{Scans} associated with \mcode{Sessions} performed by operator Patrick that do not have \mcode{Stims} associated with them, the command would be
+\begin{lstlisting}
+delete(Scans.*Sessions('operator="Patrick"')./Stims);
 \end{lstlisting}
 
 \newpage\section{Data queries}
@@ -329,7 +358,7 @@ By default, only the primary key attributes will be retrieved.  List additional 
 >> s = fetch( Mice, '*' ); % retrieve all values from Mice
 \end{lstlisting}
 
-To extract individual attributes as separate arrays instead of a structure array as above, use methods \mcode{fetch1} and \mcode{fetchn}.  Use \mcode{fetch1} to retrieve values from exactly one tuple: the field values will be returned as scalars.  Use \mcode{fetchn} to retrieve any number of tuples, in which case string attributes and blobs will be returned as cell arrays.
+To extract individual attributes as separate arrays instead of a structure array as above, use methods \mcode{fetch1} and \mcode{fetchn}.  Use \mcode{fetch1} to retrieve individual attributes from exactly one tuple.  Use \mcode{fetchn} to retrieve attributes from any number of tuples, in which case string attributes and blobs will be returned as cell arrays.
 \begin{lstlisting}
 >> dob=fetchn(Mice,'mouse_dob');
 >> [id,dob]=fetchn( Mice,'mouse_id','mouse_dob');
@@ -337,70 +366,67 @@ To extract individual attributes as separate arrays instead of a structure array
 
 Although most likely the retrieved values will be ordered by primary key values, do not assume any particular order or that two similar queries should return tuples ordered the same way.  To correctly match values from different queries use the relational \emph{join operator} (\autoref{sec:join}).
 
-Before fetching data from a relation, you may restrict the relation to a small subset of tuples as explained in \autoref{sec:restrict}. For example when the entire primary key is known, you can retrieve a field value from a specific tuple using \mcode{fetch1}:
+Before fetching data from a relation, you may restrict the relation to the desired subset of tuples as explained in detail in \autoref{sec:restrict}. For example, when the entire primary key is known, you can retrieve a field value from a specific tuple using \mcode{fetch1}:
 \begin{lstlisting}
->> key = struct('mouse_id',3);
->> dob = fetch1( Mice(key), 'mouse_dob' );   % retrieve the mouse date of birth for the given key 
+>> key=struct('mouse_id',3);
+>> dob=fetch1(Mice(key),'mouse_dob'); % get mouse date of birth for the key 
 \end{lstlisting}
 
-Retrieving data by the primary key is the fastest and most efficient way in DataJoint.  Since primary key fields are propagated down the hierarchy of tables, a tuple from any one table can be used to retrieve all and only the related data from any other table in the hierarchy without the need to follow data paths or links as is common in non-relational  databases.
+Retrieving data by the primary key is the fastest and most efficient way to identify and retrieve data.  Since primary key fields are propagated down the hierarchy of tables, the key of a given tuple in one table can be used to retrieve all and nothing but the related data from any other table in the hierarchy.
 
 \subsection{Relational operators}\label{sec:operators}
-When data are organized relationally, tuples in a relation represent discrete facts about the real world.   Relations that share commonly named attributes may be combined to produce other, derived, facts.  \href{http://en.wikipedia.org/wiki/Relational_algebra}{Relational algebra} is a branch of mathematics that provides formal operators to derive new useful relations from base relations. 
+When data are organized relationally, all tuples in one relation represent discrete facts of the same form.   Relations that share commonly named attributes may be combined to produce other, derived, facts.  \href{http://en.wikipedia.org/wiki/Relational_algebra}{Relational algebra} is a branch of mathematics that provides formal operators to derive new useful relations from base relations. 
 
 Here we will transition from database terminology to purely relational terminology: a {\em base relation} is the set of all tuples in its associated table; {\em relational operators} transform base relations into {\em derived relations}. 
-Variables of class \mcode{DJ} are {\em relation variables} containing base relations or derived relations. Relation variables support relational operators: {\em restrict, project, union, difference, semijoin, antijoin}, and {\em join}.  
+Variables of class \mcode{DJ} are {\em relation variables} that may contain base relations or derived relations and support relational operators: {\em restrict, project, union, difference, semijoin, antijoin}, and {\em join}.  
 
-Relational operators are {\em algebraically closed}: their outputs are also relations that can be assigned to other relation variables and/or become operands in the next operator. None of the relational operators actually retrieve any data: they simply describe a query to the database.  Thus the contents of a relation variable may be changed by another processes even if the variable itself has not changed.  After the precise query is formed, the data may be retrieved into the MATLAB workspace using the \mcode{fetch} method (\autoref{sec:fetch}), at which point they cease to be a relation.
+Relational operators are {\em algebraically closed}: their outputs are also relations that can be assigned to other relation variables and/or become operands in the next operator. None of the relational operators actually retrieve any data: they simply construct a query to the database.  After the query is formed, the data may be retrieved into the MATLAB workspace using the \mcode{fetch} method (\autoref{sec:fetch}).
 
-The ease and power of relational algebra is one of the strongest points of DataJoint and its real power comes from the user's ability to construct precise queries with the ease that's unmatched by other database query languages.
 
 \subsubsection{Restrict}\label{sec:restrict}
-The {\em restrict} operator excludes some tuples from a relation based on a condition.  DataJoint's \mcode{restrict} operator is rarely invoked directly because for base relations, restriction can be done more succinctly by the base relation's constructor: \mcode{Scans(condition)} is equivalent to \mcode{restrict(Scans,condition)}.  However, instantiated \mcode{DJ} objects can only be restricted using the \mcode{restrict} function. 
+The {\em restrict} operator excludes some tuples from a relation based on a condition.  DataJoint's \mcode{restrict} operator is rarely invoked directly because for base relations, restriction can be done more succinctly by the base relation's constructor: \mcode{Scans(condition)} is equivalent to \mcode{restrict(Scans,condition)}.  However, instantiated \mcode{DJ} objects can only be restricted using the \mcode{restrict} mehtod. 
 
-The first way to restrict a tuple (in the form of a structure scalar)  to be matched:
+The first way to restrict a relation is to provide a tuple (in the form of a structure)  to be matched:
 \begin{lstlisting}
-  % select all sessions with mouse_id=1001 and sessnum=3
-  key = struct('mouse_id',1001,'sessnum',3);    
-  s = Sessions(key);  % all tuples of Sessions for the given key.
+key=struct('mouse_id',1001,'sessnum',3);    
+s=Sessions(key);  % all tuples of Sessions that match the key.
 \end{lstlisting}
 
 The same condition may be supplied as a string in the form of an SQL condition:
 \begin{lstlisting}
-  s = Sessions('mouse_id=1001 and sessnum=3');
+s = Sessions('mouse_id=1001 and sessnum=3');
 \end{lstlisting}
 
-The former syntax is more common because key attributes are often available in the form of a structure, but the latter syntax allows more flexible conditions by the use of comparison operators {\tt>},{\tt>=}, {\tt<}, {\tt<=} and {\tt <>}, algebraic operators, and various functions (see \autoref{sec:sql} for other useful expressions).  The two types of conditions may be combined:
+The former syntax is more common because key attributes are often available in the form of a structure, but the latter syntax allows more flexible conditions by the use of comparison operators {\tt>},{\tt>=}, {\tt<}, {\tt<=} and {\tt <>}, algebraic operators, and various functions (see \autoref{sec:sql}).  The two types of restriction conditions may be combined:
 \begin{lstlisting}
-  sessions = Sessions('sess_date>"2010-11-01"');  % all sessions after Nov 1, 2010
-  scans = Scans('z-surfz>300')  % all scans at depth=z-surfz greater than 300
-  cells = Cells(key,'green_contast>1.5');  % all high-contrast cells for the given key 
+sessions = Sessions('sess_date>"2010-11-01"');  % all sessions after Nov 1, 2010
+scans = Scans('z-surfz>300')  % all scans at depth=z-surfz greater than 300
+cells = Cells(key,'green_contast>1.5');  % all high-contrast cells for the given key 
 \end{lstlisting}
 
-Since tables within a given hierarchy share primary key fields, one can use the key obtained from on table to retrieve related information directly from any other table:
+Since tables within a given hierarchy share primary key fields, one can use the key obtained from one table to retrieve related information directly from any other table:
 \begin{lstlisting}
 % iterate through all mice
-for key = fetch(Mice)'  % fetch primary keys from Mice and iterate through them
+for key = fetch(Mice)'  % iterate through Mice
    fprintf('Working on mouse %d\n', key.mouse_id);
-   % iterate through every scan performed on the current mouse
-   for key = fetch(Scans(key))'  % fetch primary keys from Scans within the current mouse and iterate
+   for key = fetch(Scans(key))'  %  iterate through Scans for current mouse
       fprintf('Working on session %d, scan %d\n', key.sessnum, key.scannum );
-      % get cell information for the current scan
-      cells = fetch(Cells(key)*FTraces,'*'); % fetch all attributes of cells and their traces
-      findings = fetch( Findings(key), '*' ); % retrieve related findings too
-      etraces = fetch( PatchedCell(key)*PatchCellTraces, '*' ); % retrieve patched cell traces if any  
+      % get all attributes of image masks that are classified as neurons
+      s = fetch(Masks(key).*MaskSorts('mask_type="neuron"'),'*'); 
       % do other things here
+      ...
    end
 end
 \end{lstlisting}
-Of course, users can create multiple hierarchies or use reference fields (\autoref{sec:reference}) that do not propagate primary keys in which tuples across multiple tables may not (and probably should not) be matched.
 
 See the help page for \mcode{DJ/restrict} for further details.
 
-\subsubsection{Project}\label{sec:pro}
-Given relation \mcode{A}, the {\em project} operator \mcode{B=pro(A,'attr1','attr2',..)} derives the new relation \mcode{B} containing the specified attributes from \mcode{A}.  Primary key attributes are automatically included cannot be excluded; this is an intentional constraint that prevents many logical errors. Thus the call \mcode{A=pro(A)} simply strips all non-key attributes from \mcode{A}.
+\subsubsection{Projection}\label{sec:pro}
+Given relation \mcode{A}, the {\em projection} operator \mcode{B=pro(A,'attr1','attr2',..)} derives the new relation \mcode{B} containing the specified attributes from \mcode{A}.  Primary key attributes are automatically included and cannot be excluded; this is an intentional constraint that prevents many logical errors. Thus the derivation \mcode{A=pro(A)} simply strips all non-key attributes from \mcode{A}.
 
-The wildcard \mcode{'*'} matches all attributes. An attribute may be renamed by listing it as \mcode{'old_name->new_name'}:
+The wildcard \mcode{'*'} matches all attributes. 
+
+An attribute may be renamed by listing it as \mcode{'old_name->new_name'}:
 \begin{lstlisting}
 cells = pro(Cells,'*','cellnum->c1');  % rename field cellnum to c1
 \end{lstlisting}
@@ -415,26 +441,27 @@ Another form of the projection operator takes two relations as input and allows 
 \begin{lstlisting}  
 P=pro(R,Q,'summary_expression->attr1',..). 
 \end{lstlisting}
-This expression adds a new attribute \mcode{attr1} to every tuple of \mcode{R} that computes a summary computations on matching tuples of \mcode{Q}. In some texts, this operator is called {\em summarize} and can be achieved in SQL, much less gracefully, using the \mcode{GROUP BY} clause.
-Some useful aggregate functions are \mcode{count()}, \mcode{avg()}, \mcode{max()}, \mcode{min()}, \mcode{sum()}, \mcode{variance()}, and \mcode{std()}.
+The resulting relation \mcode{P} will have the same primary key as \mcode{R} and a new attribute \mcode{attr1} which contains a summary computation on matching groups of tuples in \mcode{Q}.  
 
-For example, \mcode{P=pro(P,Q,'*','count(*)->n')} keeps all the old attributes of \mcode{P} but adds a new computed attribute named \mcode{n} which will contain the number of tuples in \mcode{Q} for every tuple in \mcode{P}.  
+Aggregate functions are \mcode{count()}, \mcode{avg()}, \mcode{max()}, \mcode{min()}, \mcode{sum()}, \mcode{variance()}, and \mcode{std()}.
 
-Another example, \mcode{R=pro(P,Q,'avg(pvalue<0.05)->frac_significant')} creates the relation \mcode{R} with the primary key from \mcode{P} and the computed attribute \mcode{frac_significant} containing the fraction of matching tuples in \mcode{Q} whose attribute \mcode{pvalue} has the value that is less than 0.05.
+For example, \mcode{P=pro(P,Q,'*','count(*)->n')} keeps all the old attributes of \mcode{P} and adds the new computed attribute \mcode{n} containing the number of matching tuples in \mcode{Q}. 
+
+Another example, \mcode{P=pro(R,Q,'avg(pvalue<0.05)->frac_significant')} creates the relation \mcode{P} containing the fraction of tuples in \mcode{Q} whose attribute \mcode{pvalue} is less than 0.05 for every matching tuple in \mcode{R}.
 
 All \mcode{fetch} operators perform a projection before retrieving the data and support all the functions provided by \mcode{DJ/pro}, including computed fields and aggregate computations.  For example, 
 \begin{lstlisting}
 % retrieve orientations of tuned cells, convert from radians to degrees
-prefOri = fetchn( OriTuningCells(key,'ori_pvalue<0.05'), 'pref_ori/pi()*180->ori_degrees' ); 
+prefOri=fetchn(OriTuningCells(key,'ori_pvalue<0.05'),'pref_ori/pi()*180->ori_degrees'); 
 
 % plot the histogram of the fraction of tuned cells per scan
-hist( fetchn( Scans, OriTuningCells, 'avg(ori_pvalue<0.05)->frac_tuned'));  
+hist(fetchn( Scans, OriTuningCells, 'avg(ori_pvalue<0.05)->frac_tuned'));  
 \end{lstlisting}
 
 For further information, see the help for \mcode{DJ/pro}, \mcode{DJ/fetch}, \mcode{DJ/fetch1}, and \mcode{DJ/fetchn}.
 
 \subsubsection{Semijoin and antijoin}
-As already discussed, tables in the schema are designed to have identically named fields (primary keys) in related tables, which allow matching tuples across different base relations.  Two tuples match when their identically named fields have equal values.
+As already discussed, tables in the schema are designed to have identically named fields (primary keys) in related tables, which allow matching tuples across different relations.  
 
 DataJoint's {\em semijoin} operator, sometimes called the {\em matching} operator,  is implemented by the \mcode{times} operator:  expression \mcode{A.*B} means ``all tuples in \mcode{A} that have matching tuples in \mcode{B}." For example:
 \begin{lstlisting}
@@ -453,133 +480,125 @@ mice = Mice./Sessions;
 
 % all mice that have not had any imaging sessions under urethane anesthesia
 mice = Mice./Sessions('anesthesia="urethane"');  
+
+% all mice that have been imaged but not under urethane anesthesia
+mice = Mice.*Sessions./Sessions('anesthesia="urethane"');  
 \end{lstlisting}
+
+Semijoin and antijoin are non-commutative and non-associative.
 
 For further information see the help pages for \mcode{DJ/mtimes} and \mcode{DJ/rdivide}.
 
 \subsubsection{Join}\label{sec:join}
-Also known as the {\em natural join}, the join operator is implemented by \mcode{DJ}'s \mcode{mtimes} operator: expression \mcode{A*B} produces the relation with all attributes from both \mcode{A} and \mcode{B} formed by merging all possible pairs of matching tuples from \mcode{A} and \mcode{B}. The join operator may be used to combine related information from two relations into a single relation and to generate all possible matching combinations of tuples from two relations. For example:
-
+Also known as the {\em natural join}, the join operator is implemented by \mcode{DJ}'s \mcode{mtimes} operator: relation \mcode{A*B} has all attributes from both \mcode{A} and \mcode{B} from all possible matching tuples from \mcode{A} and \mcode{B}. The join operator may be used to combine related information from two relations into a single relation and to generate all possible matching combinations of tuples from two relations. For example:
 \begin{lstlisting}
 % add mouse information to the Sessions relation
 sessions = Session*Mice;
 \end{lstlisting}
-
-Another example:
+The following example retrieves arrays of the image coordinates  (\mcode{segx},\mcode{segy}) and the matching preferred directions \mcode{pref} of the significantly tuned cells processed with \mcode{trace_opt=1} for a given \mcode{key}. The image coordinates are in \mcode{Masks} whereas the preferred directions are in \mcode{OriTuningCells}:
 \begin{lstlisting}
-% get the position and the preferred orientations of the significantly 
-% tuned cells processed as trace option 20 for a given scan key.
-% Not that attributes img_x and img_y are taken from Cells  while pref_ori 
-% is taken from CellOriTuning. 
-[x,y,ori]=fetchn(Cells(key)*CellOriTuning('trace_opt=20 and ori_p<0.05' )...
-     ,'img_x','img_y','pref_ori');
+Neurons=Masks(key).*MaskSorts('mask_type="neuron"'); 
+TunedNeurons=Neurons*OriTuningCells('trace_opt=1 and pvalue<0.05');
+[x,y,pref]=fetchn(TunedNeurons,'segx','segy','pref');
 \end{lstlisting} 
 
-In the following example we use SQL's \mcode{datediff} function to compute the mouse's postnatal day on the day of a session to select scans performed on young mice.  Although learning full SQL syntax and concepts is not required to use DataJoint, some SQL functions may greatly simplify a program. See \autoref{sec:sql} for a list of useful SQL functions.
-
+The following uses SQL function \mcode{datediff} to compute the mouse postnatal day to select scans performed on young mice (pday$\le24$).  Although learning full SQL syntax and concepts is not required to use DataJoint, some SQL functions may greatly simplify a query. See \autoref{sec:sql} for several useful SQL functions.
 \begin{lstlisting}
-% First select all urethane sessions done on mice younger than p24
-s = restrict(Mice*Sessions('anesthesia="urethane"'),'datediff(sess_date,mouse_dob)<=24');  
-% Find all scans from the selected sessions performed with with the 20x lens.
-s = Scans('lens=20').*s;
-% For these scans, plot the histogram of the trace skewness for traces with trace_opt=1
-hist( fetchn( CellTraces('trace_opt=1').*s, 'skewness' ) ); 
+YoungMice = restrict(Mice*Sessions,'datediff(sess_date,mouse_dob)<=24');  
 \end{lstlisting}   
-
-Here is a more complex example using the join of table to itself, for which it becomes necessary to rename some attributes.
+In some cases it may become necessary to rename some attributes in one or both of the joined relations to get the desired result. The following example plots the scatter plot of the values of \mcode{pref} from \mcode{OriTuningCells} with attribute \mcode{trace_opt=1} against those with \mcode{trace_opt=2}.  To prevent attributes from being matched, they must first be renamed using the projection operator:
 \begin{lstlisting}
-% significantly tuned cells processed with trace option 1 for a given key
-cells1=pro(CellOriTuning(key,'ori_p<0.05 and trace_opt=1'),'trace_opt->t1','pref_ori->ori1');
-% significantly tuned cells processed with trace option 20 for a given key
-cells2=pro(CellOriTuning('ori_p<0.05 and trace_opt=20'),'trace_opt->t2','pref_ori->ori2'); 
-% get pairs of preferred orientations of the same traces processed with trace_opt=1 and trace_opt=20 
-[ori1,ori2] = fetchn(cells1*cells2,'ori1','ori2');
+Tuned1=pro(OriTuningCells('trace_opt=1 and pvalue<0.05'),'trace_opt->t1','pref->p1');
+Tuned2=pro(OriTuningCells('trace_opt=2 and pvalue<0.05'),'trace_opt->t2','pref->p2');
+Pairs=Tuned1*Tuned2.*MasksSorts(key,'mask_type="neuron"'); %restrict to neurons match key
+[p1,p2] = fetchn(Pairs,'p1','p1'); 
+scatter(p1,p2);
 \end{lstlisting}
-
-Notice that to restrict the join to a given \mcode{key}, it was sufficient to restrict only one of the operands.
 
 For further information see the help page for \mcode{DJ/join}
 
 \subsubsection{Union and difference (presently excluded)}
-The union and difference operators are implemented by \mcode{DJ}'s operators \mcode{+} and \mcode{-}, respectively.  The difference operator \mcode{A-B} is a special case of the antijoin operator \mcode{A./B} when both operands have the same attributes.  The union operator \mcode{A+B} returns all the tuples in both operands \mcode{A} and \mcode{B} provided both operands have the same attributes. The need for the union operator is rare since the same result can almost always be achieved more efficiently by modifying the initial restrict operators. We chose not to include these operators with the present distribution to discourage their use but will include them if their necessity is demonstrated.
+The union and difference operators are implemented by \mcode{DJ}'s operators \mcode{+} and \mcode{-}, respectively. Since relations are sets of tuples, the set union and the difference operators have their regular meanings. However, we chose not to include them in the present distribution of DataJoint for the following reasons:
+
+The difference operator \mcode{A-B} is a special case of the antijoin operator \mcode{A./B} where both operands have the same attributes.  
+
+The need for the union operator is rare since the same result can almost always be achieved more efficiently by modifying the initial restrict operators. 
 
 \newpage\section{Populating tables automatically}
 \subsection{Setting the populate relation}
-To declare an automatically populated table, use the \mcode{ddj=setPopulateRelation(ddj,P)} command to set the table's {\em populate relation} (see \autoref{sec:stims}). In most cases, the parent relation is the {\em join} (\autoref{sec:join}) of the direct parent tables, but in many cases it makes sense to further {\em restrict} the relation or to use a table higher in the hierarchy to control the granularity of \mcode{makeTuples} calls.   You can modify the populate relation at a later time by editing the same expression in the class' constructor.
+Imported and computed tables can be populated automatically using their inherited method \mcode{populate}. 
+To enable this function, the table's \mcode{DeclareDJ} declaration must specify the {\em populate relation} \mcode{P} as
+\begin{lstlisting}
+ddj=setPopulateRelation(ddj,P);
+\end{lstlisting}
+For example, see the declaration for table \mcode{Stims} in \autoref{sec:stims}, which is populated based on \mcode{Stims}.
 
-For example, to populate \mcode{ScansCorrected} only for those Scans acquired with the 16$\times$ lens or greater, the populate relation would be set as:
+Then the command \mcode{populate(R)} will call \mcode{makeTuples(R,key)} sequentially for every unique key of its populate relation, where the custom callback method \mcode{makeTuples} implements specific computations.
+
+In most cases, the populate relation is the join of the immediate parent tables. For example, the populate relation for \mcode{OriResponses} is
+\begin{lstlisting}
+ddj=setPopulateRelation(ddj,CellTraceGroups*Stims);
+\end{lstlisting}
+
+However, sometimes the populate relation may need to be restricted to an appropriate subset of parent tuples. For example, to populate \mcode{ScansCorrected} only for those \mcode{Scans} acquired with the 16$\times$ lens or greater, the populate relation would be set as:
 \begin{lstlisting}
 ddj=setPopulateRelation(ddj,Scans('lens>=16'));
 \end{lstlisting}
 
-
-
-\subsection{The populate call}
-For a given table \mcode{R}, the command  \mcode{populate(R)} will sequentially call \mcode{makeTuples(R,key)} for each \mcode{key} in \mcode{R}'s populate relation that does not already have any matching tuples in \mcode{R}.  Your goal now is to write the customized \mcode{makeTuples} callback function to fill out the missing values for each given key. \mcode{DeclareDJ} automatically creates a template \mcode{makeTuples} listing the fields that must be computed. 
-
-\autoref{fig:populate} shows the inner workings of a \mcode{populate(dj)} call: First, \mcode{dj}'s populate relation \mcode{P} is restricted to those tuples that do not have matching tuples in \mcode{dj}.  Then \mcode{makeTuples(dj,key)} is called for each primary key of \mcode{P} inside an atomic transaction. The user-defined \mcode{makeTuples} fills out the remaining attributes and inserts the new tuple or tuples into the table. 
-
-
-\begin{figure}[h]
-\center \includegraphics[width=0.85\textwidth]{populate.pdf}
-\caption{Populating object \mcode{dj}.   }
-\label{fig:populate}
-\end{figure}
+\mcode{DeclareDJ} writes the populate relation into the class constructor, which you may modify at any time.
 
 \subsection{Filling out computed fields}
-The aim of the user-defined \mcode{makeTuples(dj,key)} callback is to create new tuples in relation \mcode{dj} for the given \mcode{key} and to insert them into the table.
+For a given table \mcode{R}, the command  \mcode{populate(R)} will sequentially call \mcode{makeTuples(R,key)} for each \mcode{key} in \mcode{R}'s populate relation that does not already have any matching tuples in \mcode{R}.  The remaining task is to write the customized \mcode{makeTuples} callback function to fill out the missing non-key attributes. \mcode{DeclareDJ} automatically creates a template \mcode{makeTuples} listing the fields that must be computed. 
 
-This function consists of the following sections:
+\mcode{makeTuples} consists of the following sections:
 \begin{enumerate}
 \item fetch related data from parent tables or parents' parent tables for the given key.  
 
 {\color{red}Important:} \mcode{makeTuples} should only retrieve data from tables that are direct ancestors of the present table and their ancestors' subtables. Fetching from tables that are not above the current table in the hierarchy may result in outdated tuples when the referenced data are changed. If data are needed from other tables, the schema should be updated to place the desired data above the current table.  This constraint is not currently enforced by DataJoint for the sake of performance. 
-\item compute new values and form new tuples for the given key
-\item insert the new tuples into the table
+\item copy the given key into a new tuple and compute the missing fields
+\item insert the new tuple(s) into the table
 \end{enumerate}
 
-The example below is for the \mcode{CellTraces} class, which produces filtered versions of calcium traces:
+The example below is for the \mcode{CellTraces} class, which produces filtered versions of calcium traces taken from \mcode{Masks}.
 \begin{lstlisting}
-% CellTraces/makeTuples(this,key) - makes CellTraces tuples for the given key
-function makeTuples(this,key)   
+% CellTraces/makeTuples(this,key) 
+function makeTuples(this,key)
 
-% get related data from parent tables
-[cellnums,traces] = fetchn(Cells(key),'cellnum','calcium_trace');
-fps = fetch1(ScansCorrected(key),'fps');
+% get traces 
+[masknums,traces] = fetchn(Masks(key),'masknum','gtrace');
+fps = fetch1( ScansCorrected(key),'fps');
 
 % filter traces
 traces = [traces{:}];  % traces are in columns
 traces = filterTraces(traces,fps,fetch(TraceOpts(key),'*'));
 
-% insert cell traces one-by-one
-for icell=1:length(cellnums)
+% insert filtered traces 
+for icell=1:length(masknums)
     tuple = key;
-    tuple.cellnum = cellnums(icell);
+    tuple.masknum = masknums(icell);
     tuple.trace = single(traces(:,icell));
-    tuple.skewness = skewness( tuple.trace );
-    
-    insert( this, tuple );  % insert into table
+    insert(this,tuple);
 end
 \end{lstlisting}
 
 
 \subsection{Subtables}\label{sec:subtables}
-A {\em subtable} is an imported or computed table that does not have a populate relation. As such, subtables cannot be populated by a call to their \mcode{populate} method. Instead, their \mcode{makeTuples} callback must be called directly from their parent's \mcode{makeTuples} and are always populated together. 
+A {\em subtable} is an imported or computed table that does not have a populate relation. As such, subtables cannot be populated by a call to their \mcode{populate} method. Instead, their \mcode{makeTuples} callback must be called directly from a parent's \mcode{makeTuples}. Thus subtable tuples are always inserted together with their parent tuples in one atomic transaction.  In addition, DataJoint disables direct deletes from subtables so that, to delete from a subtable, one must delete from its parent table. 
 
+The entity relationship diagram (\autoref{sec:erd}) shows subtables in a lighter font weight.
+
+Subtables enable many-to-one dependencies. Matching tuples in a table and its subtable can be considered an inseparable group. Another table can now refer to a parent tuple to establish a dependency on the matching group of tuples in the subtable.
 For example, a single image segmentation, represented by a tuple in \mcode{Segmentations} results in multiple image masks represented by tuples in \mcode{Masks}, which will appear all together with its parent tuple or not at all. The \mcode{Segmentations/makeTuples} then calls the \mcode{Masks/makeTuples}  after inserting its own tuple:
 \begin{lstlisting}
 % Segmentations/makeTuples
 function makeTuples( this, key )
 insert( this, key ); 
 makeTuples( Masks, key );
+makeTuples( MaskSorts, key );
 \end{lstlisting}
 
-
-As another example, a visual stimulus comprises multiple stimulus conditions and multiple stimulus presentations (see \autoref{sec:stims}). A tuning function of a cell derived from a visual stimulus depends on all the stimulus conditions and stimulus presentations.  We would then define the tables containing stimulus conditions and stimulus presentation as subtables of the visual stimulus table. To do so, all we need to do is omit defining populate relations for the two subtables.  The tuning function table that has as its parent the visual stimulus table, will automatically depend on the subtables too. 
-
-To enforce the unity of subtables with their parent tables, DataJoint does not allow deleting from subtables.  The only way to delete from a subtable is to delete from its parent table.
-
-Subtables enable many-to-one dependencies. Matching tuples in a table and its subtable can be considered an inseparable group. Another table can now refer to a parent tuple to establish a dependency on the matching group of tuples in the subtable.
+As another example, a visual stimulus in \mcode{Stims} comprises multiple \mcode{StimsOriConditions} and \\\mcode{StimsOriPresentations}. An orientation response in \mcode{OriResponses} depends on all the stimulus conditions and stimulus presentations in a given visual stimulus in \mcode{Stims}. 
+  See \autoref{sec:erd} and \autoref{sec:stims} for details.
 
 \subsection{Transaction processing}
 Note that calls to \mcode{makeTuples} are performed within individual atomic transaction (\autoref{fig:populate}): Inserted tuples do not become visible to the rest of the world until \mcode{makeTuples} exits without errors.   If \mcode{makeTuples} fails to complete, any inserts that it has already done into the table and its subtables are rolled back and never become visible to other processes. Conversely, changes made by other processes do not become visible to \mcode{makeTuples} while it is executing, making the world appear stable to a \mcode{makeTuples} call.  
@@ -588,7 +607,7 @@ Transaction processing makes DataJoint transaction-safe: interrupted or failed p
 
 
 \newpage\section{Distributed Jobs}
-Although \mcode{makeTuples} calls are executed within atomic transactions, they are non-blocking: parallel processes cannot see that the missing tuples are already being computed by another process.  If the same populate calls are executed on multiple processors, they are likely to duplicate each other's efforts.  A few extra steps are required to execute efficient distributed computations, as described in this section.
+Although \mcode{makeTuples} calls are executed within atomic transactions, they are non-blocking: parallel processes cannot tell whether a missing tuple is already being computed by another process.  If the same populate calls are executed on multiple processors, they are likely to duplicate each other's efforts.  A few extra steps are required to execute efficient distributed computations, as described in this section.
 
 \subsection{Defining the job callback}
 First, pick a manual table that will be used as the job table: jobs will be packaged into chunks for each key of this table.  In the Vis2p schema, the \mcode{Scans} table is a good candidate for job management. 
@@ -597,7 +616,7 @@ Define the method \mcode{job0(dj,key)} for the job table defining the tasks to b
 \begin{lstlisting}
 function job0(dj,key)
 populate(ScansCorrected,key);
-populate(FrameMotion,key);
+populate(Stims,key);
 populate(Segmentations,key);
 end
 \end{lstlisting}
@@ -628,10 +647,10 @@ The schema below represents the following simplified scenario: Our lab records n
 The entity relationship diagram in \autoref{fig:erd} depicts the parent/child relationships between tables used in examples throughout this tutorial. To produce similar diagrams for your schemas, use the \mcode{erd} method.
 
 \begin{lstlisting}
->> erd(Mice,false,'./core','./visual_stimuli');
+>> erd(Mice,'./core','./visual_stimuli');
 \end{lstlisting}
 \begin{figure}[h]
-\center \includegraphics[width=0.9\textwidth]{erd.pdf}
+\center \includegraphics[width=0.75\textwidth]{erd.pdf}
 \caption{The entity relationship diagram for the vis2p schema used in examples in this tutorial.  All dependencies are directed downward from a root table to dependent tables. Lookup tables are marked in gray, manual tables in green, imported in blue, and computed in red. Subtables (\autoref{sec:subtables}) are indicated in light font while all other tables are in bold.}
 \label{fig:erd}
 \end{figure}
@@ -665,7 +684,8 @@ ddj=addField(ddj,'dye',...
    'fluorescent dye combination');
 ddj=addField(ddj,'directory','varchar(512)', ...
    'the present location of the 2-photon data and other recordings');
-ddj=addField(ddj,'sess_notes','varchar(1023)','free-form notes about the imaging session','');
+ddj=addField(ddj,'sess_notes','varchar(1023)',...
+   'free-form notes about the imaging session','');
 
 dj=execute(ddj);
 setTableComment(Sessions,'Recording sessions');
@@ -680,10 +700,14 @@ ddj=addField(ddj,'lens','tinyint unsigned','lens magnification');
 ddj=addField(ddj,'mag','decimal(4,2) unsigned','scan magnification');
 ddj=addField(ddj,'laser_wavelength','smallint unsigned','(nm)');
 ddj=addField(ddj,'laser_power','smallint unsigned','mW to prep');
-ddj=addField(ddj,'x','int','(um) objective manipulator x position (assumed same reference thru session)',[]);
-ddj=addField(ddj,'y','int','(um) objective manipulator y position (assumed same reference thru session)',[]);
-ddj=addField(ddj,'z','int','(um) objective manipulator z position (assumed same reference thru session)',[]);
-ddj=addField(ddj,'surfz','int','(um) objective manipulator z position at pial surface',[]);
+ddj=addField(ddj,'x','int',...
+    '(um) objective manipulator x position (assumed same reference thru session)',[]);
+ddj=addField(ddj,'y','int',...
+   '(um) objective manipulator y position (assumed same reference thru session)',[]);
+ddj=addField(ddj,'z','int',...
+   '(um) objective manipulator z position (assumed same reference thru session)',[]);
+ddj=addField(ddj,'surfz','int',...
+   '(um) objective manipulator z position at pial surface',[]);
 ddj=addField(ddj,'scan_notes','varchar(256)','optional free-form comments','');
 
 dj=execute(ddj);
@@ -706,7 +730,8 @@ ddj=DeclareDJ(Vis2p,'StimsOriConditions','imported');
 ddj=addParent(ddj,Stims);
 ddj=addKeyField(ddj,'cond_idx','smallint unsigned','the condition index');
 
-ddj=addField(ddj,'direction','decimal(4,1) unsigned','degrees, grating direction. 0=up, the clockwise');
+ddj=addField(ddj,'direction','decimal(4,1) unsigned',...
+   'degrees, grating direction. 0=up, the clockwise');
 ddj=addField(ddj,'contrast','decimal(4,3)','grating contrast');
 ddj=addField(ddj,'luminance','float','grating luminance');
 ddj=addField(ddj,'spatial_freq','float','(cycles/degree) grating spatial frequency');
@@ -723,8 +748,10 @@ ddj=addParent(ddj,Stims);
 ddj=addKeyField(ddj,'presnum','smallint unsigned','presentation number');
 
 ddj=addReference(ddj,StimsOriConditions);
-ddj=addField(ddj,'onset','double','(ms) onset time relative to the first frame timestamp');
-ddj=addField(ddj,'duration','smallint unsigned','(ms) duration of the condition presentation');
+ddj=addField(ddj,'onset','double',...
+   '(ms) onset time relative to the first frame timestamp');
+ddj=addField(ddj,'duration','smallint unsigned',...
+   '(ms) duration of the condition presentation');
 
 dj=execute(ddj);
 setTableComment(StimsOriPresentations,'');
@@ -740,13 +767,13 @@ Sessions('sess_date>"2011-03-01"')  % all sessions recorded after March 1, 2011
 \subsection{logical operators}
 The logical operators {\tt or}, {\tt and}, and {\tt not} are applied to results of boolean expressions.
 \begin{lstlisting}
-Scans('lens>10 and mag>1.5')  % all scans performed using objective lenses >x10 and scan magnification >1.5
+Scans('lens>10 and mag>1.5')  % all scans with objective lenses >x10 and mag>1.5
 \end{lstlisting}
 
 \subsection{detecting missing values}
 To detect missing values, one can use the operators {\tt is null} and {\tt is not null}:
 \begin{lstlisting}
-ScansDetected('raster_correction is not null'); % select scans in which raster correction was performed
+ScansDetected('raster_correction is not null'); % scans in which raster correction was performed
 \end{lstlisting}
 
 \subsection{arithmetic operators and functions}
@@ -758,14 +785,17 @@ In addition, mathematical functions can be applied to results of numeric express
 \subsection{membership operators}
 The membership operators {\tt in} and {\tt not in} can simplify comparisons to a set of values: 
 \begin{lstlisting}
-% get all sessions with urethane and isoflurane anesthesia performed by anyone other than Dimitri or Manolis
-Sessions('operator not in ("Dimitri","Manolis") and anesthesia in ("urethane","isoflurane")')
+% sessions with urethane or isoflurane anesthesia performed by anyone
+% other than Dimitri or Manolis
+Sessions(...
+   'operator not in ("Dimitri","Manolis") and anesthesia in ("urethane","isoflurane")')
 \end{lstlisting}
 
 \subsection{date and time functions}
 The full list of date and time functions may be found at \url{http://dev.mysql.com/doc/refman/5.5/en/date-and-time-functions.html}.  
 \begin{lstlisting}
-restrict(Sessions*Mice,'datediff(sess_date,mouse_dob)>=21') % all sessions performed on mice 21 days and older
+% sessions performed on mice 21 days and older
+restrict(Sessions*Mice,'datediff(sess_date,mouse_dob)>=21') 
 \end{lstlisting}
 
 \subsection{aggregate functions}
