@@ -1,6 +1,10 @@
+"""
+Python 2.7 implementatin of datajoint 
+See datajoint.googlecode.com
+"""
+
 import pymysql
 import re
-from collections import defaultdict
 
 class DjException(Exception):
     def __init__(self, msg):
@@ -29,22 +33,20 @@ def camelCase(s):
 
 class Schema(object):
     """
-        dj.Schema object links a python namespace with a database schema
+    dj.Schema objects link a python module with a database schema
     """
     connInfo = []
     conn = []
+    module = None
+    tables = None
+    fields = None
 
 
-    def __init__(self, namespace, db, user, passwd, 
+    def __init__(self, module, db, user, passwd, 
             host='127.0.0.01', port=3306):
-        self.namespace = namespace
-        self.connInfo = {
-            'host':host, 
-            'db':db, 
-            'user':user, 
-            'passwd':passwd, 
-            'port':port}
-        print 'Connecting to ' + self.connInfo['host']
+        self.module = module
+        self.connInfo = dict(host=host, db=db, user=user, passwd=passwd, port=port)
+        print 'Connecting to ' + host
         self.conn = pymysql.connect(**self.connInfo)
         self.reload()
 
@@ -54,10 +56,14 @@ class Schema(object):
 
 
     def __repr__(self):
-        return  'dj.Schema "%s" -> %s:%s\n(%d tables, %d columns)' \
-            % (self.namespace, self.connInfo['host'],
-            self.connInfo['db'], len(self.tables), len(self.fields))
-         
+        if self.module is None:
+            str = 'Empty schema'
+        else:
+            str = 'dj.Schema "%s" -> %s:%s\n(%d tables, %d columns)' \
+                % (self.module, self.connInfo['host'],
+                self.connInfo['db'], len(self.tables), len(self.fields))
+        return str 
+
 
     def startTransaction(self):
         cur = self.conn.cursor()
@@ -90,7 +96,7 @@ class Schema(object):
             'name': s[0], 
             'comment': s[1].split('$')[0],
             'tier': tableTiers[tierRe.match(s[0]).group(1)],
-            'class': self.namespace + '.' + camelCase(s[0])
+            'class': self.module + '.' + camelCase(s[0])
             } for s in cur.fetchall() if tierRe.match(s[0])] 
         self.tableIdx = {k['name']:i for i,k in enumerate(self.tables)}
         self.classIdx = {k['class']:i for i,k in enumerate(self.tables)}
@@ -162,42 +168,49 @@ class Table(object):
     """
     dj.Table implements data definition functions
     """
-    
+    header = None   # string "module.className(tier) # comment"
+    schema = None   # the dj.Schema object to which self belongs
+    info = None     # dict with "name", "tier" 
+    fields = None   # array of dictionaries with field information
+    iTable = None   # index into self.schema.tables
+
     def __init__(self, declaration=None):
-        # parse declaration
-        lines = [s for s in 
-            map(lambda x:x.strip(), declaration.split('\n')) 
+
+        if declaration:
+            # parse declaration
+            lines = [s for s in 
+                map(lambda x:x.strip(), declaration.split('\n')) 
                 if s and s[0]!='#']
-        hdr = re.match((
-            '^\s*(?P<namespace>\w+)\.(?P<class>\w+)\s*' # namespace.ClassName
-            '\(\s*(?P<tier>\w+)\s*\)\s*'                # (tier)
-            '#\s*(?P<comment>\S.*\S)\s*$'               # comment
-            ), lines[0])
+            hdr = re.match((
+                '^\s*(?P<module>\w+)\.(?P<class>\w+)\s*' # module.ClassName
+                '\(\s*(?P<tier>\w+)\s*\)\s*'             # (tier)
+                '#\s*(?P<comment>\S.*\S)\s*$'            # comment
+                ), lines[0])
 
-        if not hdr:
-            raise DjException('invalid table declaration header: '+lines[0])
-        self.header = hdr.groupdict()
+            if not hdr:
+                raise DjException('invalid table declaration header: '+lines[0])
+            self.header = hdr.groupdict()
 
-        exec('import '+self.header['namespace'])
-        self.schema = eval(self.header['namespace']+'.schema')
-        if self.header['tier'] not in tableTiers.values():
-            raise DjException('invalid table tier')
-        try:
-            self.iTable = self.schema.classIdx[
-                self.header['namespace'] + '.' + self.header['class']]
-            self.info = self.schema.tables[self.iTable]
-        except KeyError, key:
-            raise DjException('Table "%s" not found' % key)
+            exec('import '+self.header['module'])
+            self.schema = eval(self.header['module']+'.schema')
+            if self.header['tier'] not in tableTiers.values():
+                raise DjException('invalid table tier')
+            try:
+                self.iTable = self.schema.classIdx[
+                    self.header['module'] + '.' + self.header['class']]
+                self.info = self.schema.tables[self.iTable]
+            except KeyError, key:
+                raise DjException('Table "%s" not found' % key)
 
-        self.fields = []
-        for field in self.schema.fields:
-            if camelCase(field['table']) == self.header['class']:
-                self.fields.append(field)
+            self.fields = []
+            for field in self.schema.fields:
+                if camelCase(field['table']) == self.header['class']:
+                    self.fields.append(field)
 
 
     def __repr__(self):
         s = '\nTable %s.%s(%s) # %s\n\n' % (
-            self.header['namespace'], self.header['class'], 
+            self.header['module'], self.header['class'], 
             self.header['tier'], self.header['comment'])
         inKey = True
         for field in self.fields:
@@ -218,27 +231,73 @@ class Table(object):
         return s
 
         
+
 class Relvar(object):
     """
     dj.Relvar provides data manipulation functions
     """
+    table  = None # corresponding table (in base relvars only)
+    schema = None # a Schema object
+    fields = None # array of structures defining field properties
+    _sqlPro = '*'  # SQL projection clause 
+    _sqlSrc = None # SQL source clause
+    _sqlRes = []   # list of SQL conditions 
 
-    def __init__(self, copyObj = None):
-        try:
+
+    def __init__(self, *sqlConds, **kwConds):
+        # self.table must be defined by derived class
+        if isinstance(self.table, Table):
             self.schema = self.table.schema
-            self.sql = ('*',
-                '`%s`.`%s`' % self.schema.connInfo['db'], self.table.info['name'],
-                '')
+            self._sqlSrc = '`%s`.`%s`' % (
+                self.schema.connInfo['db'], 
+                self.table.info['name'])
             self.fields = self.table.fields
+            self(*sqlConds, **kwConds)
 
-        except AttributeError:
-            self.fields = self.copyObj.fields
-            self.sql = copyObj.sql 
-            
+    def __call__(self, *sqlConds, **kwConds):
+        # restrict by multiple conditions
+        self.restrict(dict(**kwConds))
+        for cond in sqlConds:
+            self.restrict(cond)
+        return self
 
-        
-    def fetchn(self, ):
+
+    def __repr__(self):
+        if self.table is not None:
+            s = "Base Relvar "
+            s+= str(type(self))
+        else:
+            s = "Derived Relvar"
+        return s+'\n'
+
+
+    def restrict(self, condition=None):
+        """
+        in-place restriction by a condition.
+        The condition can be an SQL string, a dict with field values, or 
+        another relvar.
+        """
+        if condition is not None:
+            try:
+                if isinstance(condition, Relvar):
+                    # perform semijoin
+                    raise DjException('seminjoin not implemented yet')
+                elif isinstance(condition, dict):
+                    # convert dict to SQL conditions
+                    for k, v in condition.iteritems():
+                        self._sqlRes += ['%s="%s"' % (k, str(v))]
+                else:
+                    self._sqlRes += ['(%s)' % condition]
+            except:
+                print 'Error processing condition ' + str(condition)
+                raise
+
+
+    def fetch(self):
         cur = self.schema.conn.cursor()
-        cur.execute('SELECT %s FROM %s%s',
-            self.sql)
-        return self.fetchall()
+        queryStr = 'SELECT %s FROM %s' % (self._sqlPro, self._sqlSrc) 
+        if self._sqlRes:
+            queryStr+= 'WHERE '+ ' AND '.join(self._sqlRes)
+        print 'QUERY: ', queryStr
+        cur.execute(queryStr)
+        return cur.fetchall()
