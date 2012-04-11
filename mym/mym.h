@@ -49,6 +49,7 @@ typedef unsigned char uchar;
 #include "matrix.h"
 
 // We need a platform- and compiler-independent (rofl) fixed size 64 bit integer
+#include <stdint.h>
 #ifdef __GNUC__
     #include <sys/types.h>
     #define _uint64 uint64_t

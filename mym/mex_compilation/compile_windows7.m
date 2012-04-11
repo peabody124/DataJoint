@@ -11,4 +11,4 @@ ndx = strfind(p,filesep);
 optsFile = [p(1:ndx(end)) 'mexopts_windows7.bat']; % Compiler options file
 compileDir = p(1:ndx(end-1));
 cd(compileDir);   % Compilation has to be called from main dir
-eval(['mex -v -I. -I"C:\Program Files\MySQL\MySQL Server 5.1\include" -I".\zlib_windows\include" -L".\zlib_windows\lib" -L"C:\Program Files\MySQL\MySQL Server 5.0\lib\opt" -L.   -llibmysql -lzlib -lmysqlclient -lzlibwapi mym.cpp -v -f ',optsFile])
+eval(['mex -v -I. -I"C:\Program Files\MySQL\MySQL Server 5.5\include" -I".\zlib_windows\include" -L".\zlib_windows\lib" -L"C:\Program Files\MySQL\MySQL Server 5.5\lib" -L.   -llibmysql -lzlib -lmysqlclient -lzlibwapi mym.cpp -v -f ',optsFile])
