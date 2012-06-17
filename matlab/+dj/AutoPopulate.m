@@ -52,6 +52,10 @@ classdef AutoPopulate < handle
         function varargout = parPopulate(self, jobRel, varargin)
             % dj.AutoPopulate/parPopulate - same as populate but with job
             % reservation for distributed processing.
+            % 
+            % varargout = parPopulate(self, jobRel, varargin)
+            % where self is the table to populate and jobRel is the job
+            % tables
             
             assert(isa(jobRel,'dj.Relvar'), ...
                 'The second input must be a job reservation relvar');
