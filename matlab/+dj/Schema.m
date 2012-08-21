@@ -141,7 +141,7 @@ classdef Schema < handle
             % class definition
             fprintf(f, '\n\nclassdef %s < dj.Relvar', className);
             if isAuto && ~isSubtable
-                fprintf(f, ' & dj.AutoPopulate');
+                fprintf(f, ' & dj.Automatic');
             end
             
             % properties
@@ -198,18 +198,21 @@ classdef Schema < handle
             tiers = {self.tables.tier};
             tiers = [tiers repmat({'external'},1,length(names)-length(tiers))];
             
-            if nargin>=2
+            if nargin<2
+                % by default show all but the job tables
+                subset = self.classNames(~strcmp(tiers,'job'));
+            else                
                 % limit the diagram to the specified subset of tables
                 ix = find(~ismember(subset,self.classNames));
                 if ~isempty(ix)
                     error('Unknown table %d', subset(ix(1)));
                 end
-                subset = cellfun(@(x) find(strcmp(x,self.classNames)), subset);
-                levels = levels(subset);
-                C = C(subset,subset);  % connectivity matrix
-                names = self.classNames(subset);
-                tiers = tiers(subset);
             end
+            subset = cellfun(@(x) find(strcmp(x,self.classNames)), subset);
+            levels = levels(subset);
+            C = C(subset,subset);  % connectivity matrix
+            names = names(subset);
+            tiers = tiers(subset);
             
             if sum(C)==0
                 disp 'No dependencies found. Nothing to plot'
@@ -273,7 +276,8 @@ classdef Schema < handle
                 'manual',   [0.0 0.6 0.0], ...
                 'lookup',   [0.3 0.4 0.3], ...
                 'imported', [0.0 0.0 1.0], ...
-                'computed', [0.5 0.0 0.0]);
+                'computed', [0.5 0.0 0.0], ...
+                'job',      [1 1 1]);
             
             for i=1:length(levels)
                 name = names{i};
@@ -320,17 +324,27 @@ classdef Schema < handle
         end
         
         
-        function backup(self, backupDir, tiers)
+        function backup(self, backupDir, tiers, restrictor)
             % dj.Schema/backup - saves tables into .mat files
             % SYNTAX:
             %    s.backup(folder)    -- save all lookup and manual tables
             %    s.backup(folder, {'manual'})    -- save all manual tables
             %    s.backup(folder, {'manual','imported'})
+            %    s.backup(folder, [], restrictor)  -- backup only tuples that match restrictor
+            % 
             % Each table must be small enough to be loaded into memory.
             % By default, only lookup and manual tables are saved.
+            % 
+            % restrictor may contain a cell array of conditions. However,
+            % string conditions can cause errors for some tables. 
+            % The best practice is to use a structure or a relvar as a restrictor, e.g. 
+            % backup(ephys.getSchema, '/backup', [], ephys.Session('session_date > "2012-07-10"')) 
             
-            if nargin<3
+            if nargin<3 || isempty(tiers{3})
                 tiers = {'lookup','manual'};
+            end
+            if nargin<4
+                restrictor = {};
             end
             assert(all(ismember(tiers, dj.utils.allowedTiers)))
             backupDir = fullfile(backupDir, self.dbname);
@@ -348,14 +362,56 @@ classdef Schema < handle
             [~,order] = sort(self.tableLevels(ix));
             ix = ix(order);
             for iTable = ix(:)'
-                contents = self.conn.query(sprintf('SELECT * FROM `%s`.`%s`', ...
-                    self.dbname, self.tables(iTable).name));
-                contents = dj.struct.fromFields(contents);
+                className = self.classNames{iTable};
+                rel = init(dj.BaseRelvar, dj.Table(className)) & restrictor;
+                contents = rel.fetch('*'); %#ok<NASGU>
                 filename = fullfile(backupDir, ...
                     regexprep(self.classNames{iTable}, '^.*\.', ''));
                 fprintf('Saving %s to %s ...', self.classNames{iTable}, filename)
                 save(filename, 'contents')
                 fprintf 'done\n'
+            end
+        end
+        
+        
+        function restore(self, backupDir)
+            % insert all missing tuples from tables saved in <ClassName>.MAT files in backupDir
+            d = dir(fullfile(backupDir,'*.mat'));
+            
+            % instantiate all classes
+            classes = cell(length(d),1);
+            objects = cell(length(d),1);
+            for i=1:length(d)
+                try
+                    classes{i} = [self.package '.' regexprep(d(i).name, '\.mat$', '')];
+                    objects{i} = eval(classes{i});
+                    objects{i}.header;  % this will trigger the creation of a table if missing.
+                catch err
+                    warning('DataJoint:invalidClass', err.message)
+                    continue
+                end
+            end
+            ix = ~cellfun(@isempty, classes);
+            classes = classes(ix);
+            objects = objects(ix);
+            d = d(ix);
+            
+            % sort objects by hiararchical level
+            levels = cellfun(@(x) self.tableLevels(strcmp(x, self.classNames)), classes);
+            [~, ix] = sort(levels);
+            classes = classes(ix);
+            objects = objects(ix);
+            d = d(ix);
+            
+            % insert tuples
+            for i=1:length(classes)
+                s = load(fullfile(backupDir, d(i).name));
+                try
+                    fprintf('inserting %d tuples into %s\n', length(s.contents), classes{i})
+                    objects{i}.insert(s.contents, 'INSERT IGNORE');
+                catch err
+                    warning('DataJoint:TableDeclarationMismatch', err.message)
+                end                    
             end
         end
         
@@ -375,7 +431,7 @@ classdef Schema < handle
             self.tables = self.conn.query(sprintf([...
                 'SELECT table_name AS name, table_comment AS comment ' ...
                 'FROM information_schema.tables ' ...
-                'WHERE table_schema="%s" AND table_name REGEXP "^(__|_|#)?[a-z][a-z0-9_]*$"'], ...
+                'WHERE table_schema="%s" AND table_name REGEXP "^(__|_|#|~)?[a-z][a-z0-9_]*$"'], ...
                 self.dbname));
             
             % determine table tier (see dj.Table)
@@ -438,8 +494,8 @@ classdef Schema < handle
                     'FROM information_schema.key_column_usage '...
                     'WHERE (table_schema="%s" AND referenced_table_schema is not null'...
                     '   OR referenced_table_schema="%s") '...
-                    '  AND table_name REGEXP "^(__|_|#)?[a-z][a-z0-9_]*$"'...
-                    '  AND referenced_table_name REGEXP "^(__|_|#)?[a-z][a-z0-9_]*$" '...
+                    '  AND table_name REGEXP "^(__|_|#|~)?[a-z][a-z0-9_]*$"'...
+                    '  AND referenced_table_name REGEXP "^(__|_|#|~)?[a-z][a-z0-9_]*$" '...
                     'GROUP BY table_schema, table_name, referenced_table_schema, referenced_table_name'],...
                     self.dbname, self.dbname)));
                 

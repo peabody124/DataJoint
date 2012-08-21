@@ -27,12 +27,21 @@ classdef BaseRelvar < dj.GeneralRelvar
         end
         
         
-        function del(self, doPrompt)
+        function delQuick(self)
+            % dj.BaseRelvar/delQuick - remove all tuples of relation self from its table. 
+            % Unlike dj.BaseRelvar/del, delQuick does not prompt for user
+            % confirmation, nor does it attempt to cascade down to the dependent tables.
+            
+            self.schema.conn.query(sprintf('DELETE FROM %s', self.sql))
+        end
+            
+                
+        function del(self)
             % dj.BaseRelvar/del - remove all tuples of relation self from its table
             % as well as all dependent tuples in dependent tables.
             %
-            % By default, confirmation is requested before deleting the data.
-            % To turn off the confirmation, set the second input doPrompt to false.
+            % A summary of the data to be removed will be provided followed by
+            % an interactive confirmation before deleting the data.
             %
             % EXAMPLES:
             %   del(Scans) % delete all tuples from table Scans and all tuples in dependent tables.
@@ -40,17 +49,16 @@ classdef BaseRelvar < dj.GeneralRelvar
             %   del(Scans - Cells)  % delete all tuples from table Scans that do not have matching
             %                       % tuples in table Cells
             %
-            % See also dj.Table/drop
+            % See also dj.BaseRelvar/delQuick, dj.Table/drop
             
-            doPrompt = nargin<2 || doPrompt;
             self.schema.conn.cancelTransaction  % exit ongoing transaction, if any
             
-            if self.count==0
+            if ~self.exists
                 disp 'nothing to delete'
             else
                 % warn the user if deleting from a subtable
                 if ismember(self.tab.info.tier, {'imported','computed'}) ...
-                        && ~isa(self, 'dj.AutoPopulate')
+                        && ~isa(self, 'dj.AutoPopulate') && ~isa(self, 'dj.Automatic')
                     fprintf(['!!! %s is a subtable. For referential integrity, ' ...
                         'delete from its parent instead.\n'], class(self))
                     if ~strcmpi('yes', input('Prceed anyway? yes/no >','s'))
@@ -77,22 +85,20 @@ classdef BaseRelvar < dj.GeneralRelvar
                 rels = rels(include);
                 
                 % inform the  user about what's being deleted
-                if doPrompt
-                    disp 'ABOUT TO DELETE:'
-                    for iRel = 1:length(rels)
-                        fprintf('%s %s: %d', ...
-                            rels{iRel}.tab.info.tier, ...
-                            rels{iRel}.tab.info.name, counts(iRel));
-                        if ismember(rels{iRel}.tab.info.tier, {'manual','lookup'})
-                            fprintf ' !!!'
-                        end
-                        fprintf \n
+                disp 'ABOUT TO DELETE:'
+                for iRel = 1:length(rels)
+                    fprintf('%s %s: %d', ...
+                        rels{iRel}.tab.info.tier, ...
+                        rels{iRel}.tab.info.name, counts(iRel));
+                    if ismember(rels{iRel}.tab.info.tier, {'manual','lookup'})
+                        fprintf ' !!!'
                     end
                     fprintf \n
                 end
+                fprintf \n
                 
                 % confirm and delete
-                if doPrompt && ~strcmpi('yes', input('Proceed to delete? yes/no >', 's'))
+                if ~strcmpi('yes', input('Proceed to delete? yes/no >', 's'))
                     disp 'delete canceled'
                 else
                     self.schema.conn.startTransaction

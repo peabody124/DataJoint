@@ -2,7 +2,7 @@
 % General relvars do not have a table associated with them. They
 % represent a relational expression based on other relvars.
 
-% To make the code R2009 compatible, toggle comments on the following two lines  
+% To make the code R2009 compatible, toggle comments on the following two lines
 %classdef GeneralRelvar < dj.R2009CopyableRelvarMixin  % pre-R2011
 classdef GeneralRelvar < matlab.mixin.Copyable  %post-R2011
     
@@ -41,7 +41,7 @@ classdef GeneralRelvar < matlab.mixin.Copyable  %post-R2011
         function s = get.sql(self)
             [~, s] = self.compile();
         end
-        
+                
         function schema = get.schema(self)
             schema = self.getSchema();
         end
@@ -67,25 +67,23 @@ classdef GeneralRelvar < matlab.mixin.Copyable  %post-R2011
             clause = makeWhereClause(self.header, self.restrictions);
         end
         
-        function display(self, justify)
+        function display(self)
             % dj.GeneralRelvar/display - display the contents of the relation.
             % Only non-blob attributes of the first several tuples are shown.
             % The total number of tuples is printed at the end.
             tic
-            justify = nargin==1 || justify;
             display@handle(self)
-            nTuples = self.count;
-            
-            header = self.header;
-            
-            if nTuples>0
+            nTuples = 0;
+            if self.exists
                 % print header
+                header = self.header;
                 ix = find( ~[header.isBlob] );  % header to display
                 fprintf \n
                 fprintf('  %12.12s', header(ix).name)
                 fprintf \n
                 maxRows = 12;
                 tuples = self.fetch(header(ix).name,maxRows+1);
+                nTuples = max(self.count, length(tuples));  
                 
                 % print rows
                 for s = tuples(1:min(end,maxRows))'
@@ -94,11 +92,7 @@ classdef GeneralRelvar < matlab.mixin.Copyable  %post-R2011
                         if isnumeric(v)
                             fprintf('  %12g',v)
                         else
-                            if justify
-                                fprintf('  %12.12s',v)
-                            else
-                                fprintf('  ''%12s''', v)
-                            end
+                            fprintf('  %12.12s',v)
                         end
                     end
                     fprintf '\n'
@@ -112,23 +106,25 @@ classdef GeneralRelvar < matlab.mixin.Copyable  %post-R2011
             end
             
             % print the total number of tuples
-            fprintf('%d tuples (%.3g s)\n\n', nTuples, toc)
+            fprintf('%d tuples (%.3g s)\n\n', nTuples, toc)            
         end
         
         function view(self)
             % dj.Relvar/view - view the data in speadsheet form
             
-            if ~self.count
+            if ~self.exists
                 disp 'empty relation'
             else
                 columns = {self.header.name};
-                
-                assert(~any([self.header.isBlob]), 'cannot view blobs')
+                sel = 1:length(columns);
+                if any([self.header.isBlob])
+                    warning('DataJoint:viewblobs', 'excluding blobs from the view');
+                    columns = columns(~[self.header.isBlob]);
+                end
                 
                 % specify table header
                 columnName = columns;
                 for iCol = 1:length(columns)
-                    
                     if self.header(iCol).iskey
                         columnName{iCol} = ['<html><b><font color="black">' columnName{iCol} '</b></font></html>'];
                     else
@@ -136,13 +132,8 @@ classdef GeneralRelvar < matlab.mixin.Copyable  %post-R2011
                     end
                 end
                 format = cell(1,length(columns));
-                format([self.header.isString]) = {'char'};
-                format([self.header.isNumeric]) = {'numeric'};
-                for iCol = find(strncmpi('ENUM', {self.header.type}, 4))
-                    enumValues = textscan(self.header(iCol).type(6:end-1),'%s','Delimiter',',');
-                    enumValues = cellfun(@(x) x(2:end-1), enumValues{1}, 'Uni', false);  % strip quotes
-                    format(iCol) = {enumValues'};
-                end
+                format([self.header(sel).isString]) = {'char'};
+                format([self.header(sel).isNumeric]) = {'numeric'};
                 
                 % display table
                 data = fetch(self, columns{:});
@@ -156,9 +147,17 @@ classdef GeneralRelvar < matlab.mixin.Copyable  %post-R2011
         
         
         %%%%%%%%%%%%%%%%%% FETCHING DATA %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+       
+        function yes = exists(self)
+            % dj.GeneralRelvar/exists - a fast check whether the relvar
+            % contains any tuples
+            [~, sql] = self.compile(3);
+            yes = self.schema.conn.query(sprintf('SELECT EXISTS(SELECT 1 FROM %s LIMIT 1) as yes', sql));
+            yes = logical(yes.yes);
+        end
         
         function n = count(self)
-            % GeneralRelvar/count - the number of tuples in the relation.
+            % dj.GeneralRelvar/count - the number of tuples in the relation.
             [~, sql] = self.compile(3);
             n = self.schema.conn.query(sprintf('SELECT count(*) as n FROM %s', sql));
             n=n.n;
@@ -259,10 +258,19 @@ classdef GeneralRelvar < matlab.mixin.Copyable  %post-R2011
             % values from multiple tuples.  Unlike fetch1, string and
             % blob values are retrieved as matlab cells.
             %
+            % SYNTAX:
+            % [f1, ..., fn] = rel.fetchn('field1',...,'fieldn')
+            %
+            % You may also obtain the primary key values (as a structure
+            % array) that match the retrieved field values.
+            %
+            % [f1, ..., fn, keys] = rel.fetchn('field1',...,'fieldn')
+            %
             % See also dj.GeneralRelvar/fetch1, dj.GeneralRelvar/fetch, dj.GeneralRelvar/pro
             
             specs = varargin(cellfun(@ischar, varargin));  % attribute specifiers
-            if nargout~=length(specs) && (nargout~=0 || length(specs)~=1), ...
+            returnKey = nargout==length(specs)+1;
+            if ~returnKey && nargout~=length(specs) && (nargout~=0 || length(specs)~=1), ...
                     throwAsCaller(MException('DataJoint:invalidOperator', ...
                     'The number of fetchn() outputs must match the number of requested attributes'))
             end
@@ -277,7 +285,7 @@ classdef GeneralRelvar < matlab.mixin.Copyable  %post-R2011
             [limit, args] = makeLimitClause(varargin{:});
             
             % submit query
-            self = self.pro(args{:});
+            self = self.pro(args{:});  % this copies the object, so now it's a different self
             [header, sql] = self.compile;
             ret = self.schema.conn.query(sprintf('SELECT %s FROM %s%s%s',...
                 makeAttrList(header), sql, limit));
@@ -288,6 +296,10 @@ classdef GeneralRelvar < matlab.mixin.Copyable  %post-R2011
                 % if renamed, use the renamed attribute
                 name = regexp(specs{iArg}, '(\w+)\s*$', 'tokens');
                 varargout{iArg} = ret.(name{1}{1});
+            end
+            
+            if returnKey
+                varargout{length(specs)+1} = dj.struct.fromFields(dj.struct.pro(ret, self.primaryKey{:}));
             end
         end
         
@@ -330,8 +342,8 @@ classdef GeneralRelvar < matlab.mixin.Copyable  %post-R2011
             if ~iscell(arg)
                 arg = {arg};
             end
-            ret = self.copy; 
-            ret.restrictions = [ret.restrictions arg];  
+            ret = self.copy;
+            ret.restrictions = [ret.restrictions arg];
         end
         
         function ret = minus(self, arg)
@@ -339,9 +351,43 @@ classdef GeneralRelvar < matlab.mixin.Copyable  %post-R2011
                 throwAsCaller(MException('DataJoint:invalidOperator',...
                     'Antijoin only accepts single restrictions'))
             end
-            ret = self.copy;  
-            ret.restrictions = [ret.restrictions {'not' arg}]; 
+            ret = self.copy;
+            ret.restrictions = [ret.restrictions {'not' arg}];
         end
+        
+        function ret = plus(self, arg)
+            ret = self.or(arg);
+        end
+        
+        function ret = or(self, arg)
+            % the relational union operator.
+            %
+            % arg can be another relvar, a string condition, or a structure array of tuples.
+            %
+            % The result will be a special kind of relvar that can only be used
+            % as an argument in another restriction operator. It cannot be
+            % queried on its own.
+            %
+            % For example:
+            %   B + C   cannot be used on its own, but:
+            %   A & (B + C) returns all tuples in A that have matching tuples in B or C.
+            %   A - (B + C) returns all tuples in A that have no matching tuples in B or C.
+            
+            if ~strcmp(self.operator, 'union')
+                operandList = {self};
+            else
+                operandList = self.operands;
+            end
+            
+            % expand recursive unions
+            if ~isa(arg, 'dj.GeneralRelvar') || ~strcmp(arg.operator, 'union')
+                operandList = [operandList {arg}];
+            else
+                operandList = [operandList arg.operands];
+            end
+            ret = init(dj.GeneralRelvar, 'union', operandList);
+        end
+        
         
         function ret = times(self, arg)
             % alias for backward compatibility
@@ -420,7 +466,7 @@ classdef GeneralRelvar < matlab.mixin.Copyable  %post-R2011
             end
             
             ret = init(dj.GeneralRelvar, op, [{self} arg params]);
-        end        
+        end
         
         function ret = mtimes(self, arg)
             % dj.GeneralRelvar/mtimes - relational natural join.
@@ -437,7 +483,7 @@ classdef GeneralRelvar < matlab.mixin.Copyable  %post-R2011
             % dj.GeneralRelvar/pro's rename syntax.
             %
             % See also dj.GeneralRelvar/pro, dj.GeneralRelvar/fetch
-            if nargin<=1 || ~isa(arg, 'dj.GeneralRelvar')
+            if ~isa(arg, 'dj.GeneralRelvar')
                 throwAsCaller(MException('DataJoint:invalidOperotor', ...
                     'dj.GeneralRelvar/mtimes requires another relvar as operand'))
             end
@@ -481,7 +527,7 @@ classdef GeneralRelvar < matlab.mixin.Copyable  %post-R2011
             %   header = structure array with attribute properties
             %
             % The input argument enclose controls whether the statement
-            % must be enclosed in parentheses: 
+            % must be enclosed in parentheses:
             %   0 - don't enclose
             %   1 - enclose only if some attributes are aliased
             %   2 - enclose if anything but a simple table
@@ -498,9 +544,13 @@ classdef GeneralRelvar < matlab.mixin.Copyable  %post-R2011
             if nargin<2
                 enclose = 0;
             end
-                        
+            
             % apply relational operators recursively
             switch self.operator
+                case 'union'
+                    throwAsCaller(MException('DataJoint:invalidOperator', ...
+                        'The union operator must be used in a restriction'))
+                    
                 case 'table'  % terminal node
                     r = self.operands{1};
                     header = r.header;
@@ -517,7 +567,7 @@ classdef GeneralRelvar < matlab.mixin.Copyable  %post-R2011
                         {header([header.isBlob]).name}, ...
                         {header2([header2.isBlob]).name});
                     if ~isempty(commonIllegal)
-                        throwAsCaller(MException('DataJoint:illegalOperator', ...
+                        throwAsCaller(MException('DataJoint:invalidOperator', ...
                             'join cannot be done on blob attributes'))
                     end
                     commonAttrs = intersect({header.name}, {header2.name});
@@ -539,14 +589,14 @@ classdef GeneralRelvar < matlab.mixin.Copyable  %post-R2011
                     sql = sprintf('%s NATURAL JOIN %s', sql, sql2);
                     
                 otherwise
-                    error 'unknown operator'
-            end 
+                    error 'unknown relational operator'
+            end
             
             haveAliasedAttrs = ~all(arrayfun(@(x) isempty(x.alias), header));
             
             % apply restrictions
             if ~isempty(self.restrictions)
-                % clear aliases and enclose 
+                % clear aliases and enclose
                 if haveAliasedAttrs
                     [attrStr, header] = makeAttrList(header);
                     sql = sprintf('(SELECT %s FROM %s) as `$s%x`', attrStr, sql, aliasCount);
@@ -559,10 +609,10 @@ classdef GeneralRelvar < matlab.mixin.Copyable  %post-R2011
             % enclose in parentheses if necessary
             if enclose==1 && haveAliasedAttrs ...
                     || enclose==2 && (~strcmp(self.operator,'table') || ~isempty(self.restrictions)) ...
-                    || enclose==3 && strcmp(self.operator, 'aggregate')  
+                    || enclose==3 && strcmp(self.operator, 'aggregate')
                 [attrStr, header] = makeAttrList(header);
                 sql = sprintf('(SELECT %s FROM %s) AS `$a%x`', attrStr, sql, aliasCount);
-            end                 
+            end
         end
     end
 end
@@ -582,12 +632,21 @@ assert(all(arrayfun(@(x) isempty(x.alias), selfAttrs)), ...
     'aliases must be resolved before restriction')
 
 clause = '';
-word = ' WHERE';
+word = 'WHERE';
 not = '';
+
+stripWhere = @(s) s(7:end);
 
 for arg = restrictions
     cond = arg{1};
     switch true
+        case isa(cond, 'dj.GeneralRelvar') && strcmp(cond.operator, 'union')
+            % union
+            s = cellfun(@(x) stripWhere(makeWhereClause(selfAttrs, {x})), cond.operands, 'UniformOutput', false);
+            assert(~isempty(s));
+            s = sprintf('(%s) OR ', s{:});
+            clause = sprintf('%s %s %s(%s)', clause, word, not, s(1:end-4));
+            
         case ischar(cond) && strcmpi(cond,'NOT')
             % negation of the next condition
             not = 'NOT ';
@@ -599,8 +658,12 @@ for arg = restrictions
             
         case isstruct(cond)
             % struct array
-            clause = sprintf('%s %s %s(%s)', clause, word, not, ...
-                struct2cond(cond, selfAttrs));
+            c = struct2cond(cond, selfAttrs);
+            if isempty(c)
+                continue
+            else
+                clause = sprintf('%s %s %s(%s)', clause, word, not, c);
+            end
             
         case isa(cond, 'dj.GeneralRelvar')
             % semijoin or antijoin
@@ -611,8 +674,8 @@ for arg = restrictions
                 [attrStr, condAttrs] = makeAttrList(condAttrs);
                 condSQL = sprintf('(SELECT %s FROM %s) as `$u%x`', attrStr, condSQL, aliasCount);
             end
-                        
-            % common attributes for matching. Blobs are not included 
+            
+            % common attributes for matching. Blobs are not included
             commonAttrs = intersect(...
                 {selfAttrs(~[selfAttrs.isBlob]).name}, ...
                 {condAttrs(~[condAttrs.isBlob]).name});
@@ -647,36 +710,40 @@ if length(keys)>512
         'consider replacing the long array of keys with a more succinct condition')
 end
 conds = cell(1,length(keys));
-for iKey= 1:length(keys)
-    key = keys(iKey);
-    keyFields = fieldnames(key)';
-    foundAttributes = ismember(keyFields, {header.name});
-    word = '';
+keyFields = fieldnames(keys)';
+foundAttributes = ismember(keyFields, {header.name});
+if ~any(foundAttributes)
     cond = '';
-    for field = keyFields(foundAttributes)
-        value = key.(field{1});
-        if ~isempty(value)
-            iField = find(strcmp(field{1}, {header.name}));
-            assert(~header(iField).isBlob,...
-                'The key must not include blob header.');
-            if header(iField).isString
-                assert( ischar(value), ...
-                    'Value for key.%s must be a string', field{1})
-                value=sprintf('"%s"',value);
-            else
-                assert(isnumeric(value), ...
-                    'Value for key.%s must be numeric', field{1});
-                value=sprintf('%1.16g',value);
+else
+    for iKey= 1:length(keys)
+        key = keys(iKey);
+        word = '';
+        cond = '';
+        for field = keyFields(foundAttributes)
+            value = key.(field{1});
+            if ~isempty(value)
+                iField = find(strcmp(field{1}, {header.name}));
+                assert(~header(iField).isBlob,...
+                    'The key must not include blob header.');
+                if header(iField).isString
+                    assert( ischar(value), ...
+                        'Value for key.%s must be a string', field{1})
+                    value=sprintf('"%s"',value);
+                else
+                    assert(isnumeric(value), ...
+                        'Value for key.%s must be numeric', field{1});
+                    value=sprintf('%1.16g',value);
+                end
+                cond = sprintf('%s%s`%s`=%s', ...
+                    cond, word, header(iField).name, value);
+                word = ' AND';
             end
-            cond = sprintf('%s%s`%s`=%s', ...
-                cond, word, header(iField).name, value);
-            word = ' AND';
         end
+        conds{iKey} = cond;
     end
-    conds{iKey} = cond;
+    cond = sprintf('OR (%s)', conds{:});
+    cond = cond(4:end);
 end
-cond = sprintf('OR (%s)', conds{:});
-cond = cond(4:end);
 end
 
 
